@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "PowerShell($x = [xml]\\(Invoke-WebRequest -UseBasicParsing 'https://repo.maven.apache.org/maven2/org/springdoc/springdoc-openapi-starter-webmvc-ui/maven-metadata.xml'\\).Content; \"latest: $\\($x.metadata.versioning.latest\\)  release: $\\($x.metadata.versioning.release\\)\"; \\($x.metadata.versioning.versions.version | Select-Object -Last 8\\) -join ', ')"
-    ]
-  }
-}

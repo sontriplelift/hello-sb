@@ -39,6 +39,8 @@ Khi xong, API phải làm được:
 ### Ghi chú về database
 Máy không có quyền admin, và proxy công ty chặn tải PostgreSQL/MySQL. Vì vậy project dùng **H2** (database nhúng, lấy qua Maven Central, không cần cài đặt). Khi IT cài MySQL hoặc PostgreSQL thì chỉ cần đổi dependency và cấu hình (Step 9).
 
+File DB (`data/`) **không** được đưa lên Git. Trên máy mới: chạy app một lần để Hibernate tạo bảng, rồi chạy [seed-data.sql](seed-data.sql) trong DBeaver. Hướng dẫn cho Claude nằm ở [CLAUDE.md](../CLAUDE.md).
+
 ---
 
 ## Tiến độ
@@ -53,7 +55,7 @@ Máy không có quyền admin, và proxy công ty chặn tải PostgreSQL/MySQL.
 | 5 | ✅ Đạt (review lần 2) | Làm cả cách A lẫn B (`instanceof org.springframework.web.ErrorResponse`), `validateBirthYear()` đã tách. Còn nợ: chỉ `logger.error` khi thực sự là lỗi 500 |
 | 6 | ✅ Đạt (review lần 3) | Quan hệ LAZY, sửa N+1 bằng `@EntityGraph`, tắt OSIV, 409 khi xoá author có sách, chuẩn hoá scale `price`. Giữ `/api/books/join-fetch` làm ví dụ (chủ động) |
 | 7 | ✅ Đạt (review lần 2) | Tự đổi sang whitelist trường sort (tốt hơn cách mentor gợi ý). Mentor sửa giúp phần escape `%` `_` trong `LIKE`. Chủ động: sort mặc định `id DESC`, giữ code comment. Còn nợ: `throw ex` trong handler `InvalidDataAccessApiUsageException` |
-| 8 | ⏳ Đang làm | |
+| 8 | ⏳ Đang làm | Đã tách 3 file profile; chạy được prod với user `library_app` ("Cách A"). Chưa review |
 
 ---
 

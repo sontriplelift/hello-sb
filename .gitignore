@@ -31,3 +31,13 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Dữ liệu và log local (máy mới tạo lại DB bằng docs/seed-data.sql) ###
+data/
+logs/
+
+### Cấu hình Claude Code riêng của từng máy ###
+.claude/settings.local.json
+
+### File zip tải từ Spring Initializr ###
+library.zip
