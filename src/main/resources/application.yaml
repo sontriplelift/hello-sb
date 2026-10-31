@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: library
+
+  profiles:
+    active: dev
+
+  jpa:
+    open-in-view: false
+
+  data:
+    web:
+      pageable:
+        max-page-size: 50
+  
+library:
+  api:
+    title: Mini Library API
+    version: 1.0.0
+    description: REST API quản lý tác giả và sách
+
+server:
+  port: 8080
