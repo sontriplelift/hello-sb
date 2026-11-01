@@ -21,8 +21,11 @@ import com.example.library.dto.BookSearchCriteria;
 import com.example.library.dto.PageResponse;
 import com.example.library.service.BookService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
+@Tag(name = "Books", description = "API quản lý sách")
 @RestController
 @RequestMapping("/api/books")
 public class BookController {
@@ -43,6 +46,7 @@ public class BookController {
   // return ResponseEntity.ok(bookService.findAllJoinFetch());
   // }
 
+  @Operation(summary = "Get list books")
   @GetMapping
   public ResponseEntity<PageResponse<BookResponse>> getBooks(
       BookSearchCriteria criteria,
@@ -51,12 +55,14 @@ public class BookController {
         bookService.searchBooks(criteria, pageable));
   }
 
+  @Operation(summary = "Get book by id")
   @GetMapping("/{id}")
   public ResponseEntity<BookResponse> getBookById(@PathVariable Long id) {
     BookResponse book = bookService.findById(id);
     return ResponseEntity.ok(book);
   }
 
+  @Operation(summary = "Create book")
   @PostMapping
   public ResponseEntity<BookResponse> createBook(@Valid @RequestBody BookRequest bookRequest) {
     BookResponse createdBook = bookService.create(bookRequest);
@@ -64,12 +70,14 @@ public class BookController {
     return ResponseEntity.created(location).body(createdBook);
   }
 
+  @Operation(summary = "Update book")
   @PutMapping("/{id}")
   public ResponseEntity<BookResponse> updateBook(@PathVariable Long id, @Valid @RequestBody BookRequest bookRequest) {
     BookResponse updatedBook = bookService.update(id, bookRequest);
     return ResponseEntity.ok(updatedBook);
   }
 
+  @Operation(summary = "Delete book")
   @DeleteMapping("/{id}")
   public ResponseEntity<Void> deleteBook(@PathVariable Long id) {
     bookService.delete(id);

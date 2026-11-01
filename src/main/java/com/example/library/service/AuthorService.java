@@ -9,6 +9,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.example.library.dto.AuthorRequest;
 import com.example.library.dto.AuthorResponse;
@@ -29,6 +31,8 @@ public class AuthorService {
   private final AuthorRepository authorRepository;
   private final BookRepository bookRepository;
   private final AuthorMapper authorMapper;
+
+  private static final Logger logger = LoggerFactory.getLogger(AuthorService.class);
 
   public AuthorService(AuthorRepository authorRepository, BookRepository bookRepository, AuthorMapper authorMapper) {
     this.authorRepository = authorRepository;
@@ -70,6 +74,14 @@ public class AuthorService {
   public PageResponse<AuthorResponse> searchAuthors(
       String name,
       Pageable pageable) {
+    
+    logger.debug(
+        "Searching authors with name={}, page={}, size={}, sort={}",
+        name,
+        pageable.getPageNumber(),
+        pageable.getPageSize(),
+        pageable.getSort()
+    );
 
     validateSort(pageable);
     
@@ -102,6 +114,9 @@ public class AuthorService {
       throw new DuplicateResourceException("Email already exists: " + authorRequest.email());
     }
     Author savedAuthor = authorRepository.save(authorMapper.toEntity(authorRequest));
+
+    logger.info("Created author id={} email={}", savedAuthor.getId(), savedAuthor.getEmail());
+    
     return authorMapper.toResponse(savedAuthor);
   }
 
@@ -116,6 +131,7 @@ public class AuthorService {
     }
 
     authorMapper.updateEntity(author, authorRequest);
+    logger.info("Updated author id={}", id);
     return authorMapper.toResponse(author);
   }
 
@@ -128,5 +144,6 @@ public class AuthorService {
           "Cannot delete author with associated books. Author ID: " + id + " has " + bookCount + " book(s)");
     }
     authorRepository.delete(existingAuthor);
+    logger.info("Deleted author id={}", id);
   }
 }

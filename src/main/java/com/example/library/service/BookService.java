@@ -10,6 +10,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.example.library.dto.BookRequest;
 import com.example.library.dto.BookResponse;
@@ -29,6 +31,8 @@ public class BookService {
   private final BookRepository bookRepository;
   private final BookMapper bookMapper;
   private final AuthorService authorService;
+
+  private static final Logger logger = LoggerFactory.getLogger(BookService.class);
 
   private void validatePublishedYear(Integer publishedYear) {
     if (publishedYear != null && publishedYear > Year.now().getValue()) {
@@ -99,6 +103,9 @@ public class BookService {
     Author author = authorService.getAuthorById(bookRequest.authorId());
     Book book = bookMapper.toEntity(bookRequest, author);
     Book savedBook = bookRepository.save(book);
+
+    logger.info("Created book id={} isbn={} author={}", savedBook.getId(), savedBook.getIsbn(), savedBook.getAuthor().getName());
+
     return bookMapper.toResponse(savedBook);
   }
 
@@ -115,6 +122,9 @@ public class BookService {
     Author author = authorService.getAuthorById(bookRequest.authorId());
 
     bookMapper.updateEntity(book, bookRequest, author);
+
+    logger.info("Updated book id={}", id);
+
     return bookMapper.toResponse(book);
   }
 
@@ -122,6 +132,7 @@ public class BookService {
   public void delete(Long id) {
     Book book = getBookById(id);
     bookRepository.delete(book);
+    logger.info("Deleted book id={}", id);
   }
 
   @Transactional(readOnly = true)
@@ -136,9 +147,21 @@ public class BookService {
   public PageResponse<BookResponse> searchBooks(
       BookSearchCriteria criteria,
       Pageable pageable) {
+
     BigDecimal minPrice = criteria.minPrice();
     BigDecimal maxPrice = criteria.maxPrice();
     String title = criteria.title();
+
+    logger.debug(
+        "Searching books with criteria: title={}, authorId={}, minPrice={}, maxPrice={}, page={}, size={}, sort={}",
+        title,
+        criteria.authorId(),
+        minPrice,
+        maxPrice,
+        pageable.getPageNumber(),
+        pageable.getPageSize(),
+        pageable.getSort()
+    );
 
     if (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
       throw new BusinessException(

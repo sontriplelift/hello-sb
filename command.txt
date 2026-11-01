@@ -6,3 +6,8 @@ $env:DB_URL = "jdbc:h2:file:D:/Workspace/spring-boot/hello-sb/data/library_db;MO
 $env:DB_USERNAME = "library_app"
 $env:DB_PASSWORD = "Library@123"
 .\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=prod"
+
+$env:DB_URL = "jdbc:h2:file:D:/Workspace/java/hello-sb/data/library_db;MODE=MySQL;AUTO_SERVER=TRUE"
+$env:DB_USERNAME = "library_app"
+$env:DB_PASSWORD = "Library@123"
+.\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=prod"

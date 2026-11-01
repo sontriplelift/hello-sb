@@ -24,8 +24,11 @@ import com.example.library.dto.PageResponse;
 import com.example.library.service.AuthorService;
 import com.example.library.service.BookService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
+@Tag(name = "Author", description = "API quản lý tác giả")
 @RestController
 @RequestMapping("/api/authors")
 public class AuthorController {
@@ -43,6 +46,7 @@ public class AuthorController {
   // return ResponseEntity.ok(authorService.findAll());
   // }
 
+  @Operation(summary = "Get list author")
   @GetMapping
   public ResponseEntity<PageResponse<AuthorResponse>> getAuthors(
       @RequestParam(required = false) String name,
@@ -50,12 +54,14 @@ public class AuthorController {
     return ResponseEntity.ok(authorService.searchAuthors(name, pageable));
   }
 
+  @Operation(summary = "Get author by id")
   @GetMapping("/{id}")
   public ResponseEntity<AuthorResponse> getAuthorById(@PathVariable Long id) {
     AuthorResponse author = authorService.findById(id);
     return ResponseEntity.ok(author);
   }
 
+  @Operation(summary = "Create author")
   @PostMapping
   public ResponseEntity<AuthorResponse> createAuthor(@Valid @RequestBody AuthorRequest authorRequest) {
     AuthorResponse createdAuthor = authorService.create(authorRequest);
@@ -63,6 +69,7 @@ public class AuthorController {
     return ResponseEntity.created(location).body(createdAuthor);
   }
 
+  @Operation(summary = "Update author")
   @PutMapping("/{id}")
   public ResponseEntity<AuthorResponse> updateAuthor(@PathVariable Long id,
       @Valid @RequestBody AuthorRequest authorRequest) {
@@ -70,12 +77,14 @@ public class AuthorController {
     return ResponseEntity.ok(updatedAuthor);
   }
 
+  @Operation(summary = "Delete author")
   @DeleteMapping("/{id}")
   public ResponseEntity<Void> deleteAuthor(@PathVariable Long id) {
     authorService.delete(id);
     return ResponseEntity.noContent().build();
   }
 
+  @Operation(summary = "Get books by author")
   @GetMapping("/{id}/books")
   public ResponseEntity<List<BookResponse>> getBooksByAuthor(@PathVariable Long id) {
     List<BookResponse> books = bookService.findBooksByAuthorId(id);

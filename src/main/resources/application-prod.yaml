@@ -14,5 +14,9 @@ spring:
 
 logging:
   level:
+    com.example.library: INFO
     org.hibernate.SQL: WARN
     org.hibernate.orm.jdbc.bind: OFF
+
+  file:
+    name: logs/library.log
