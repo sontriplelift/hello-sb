@@ -19,9 +19,14 @@ import com.example.library.dto.BookRequest;
 import com.example.library.dto.BookResponse;
 import com.example.library.dto.BookSearchCriteria;
 import com.example.library.dto.PageResponse;
+import com.example.library.exception.ErrorResponse;
 import com.example.library.service.BookService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
@@ -63,6 +68,26 @@ public class BookController {
   }
 
   @Operation(summary = "Create book")
+  @ApiResponses({
+    @ApiResponse(
+      responseCode = "201",
+      description = "Book created successfully"
+    ),
+    @ApiResponse(
+      responseCode = "400",
+      description = "Invalid request",
+      content = @Content(
+        schema = @Schema(implementation = ErrorResponse.class)
+      )
+    ),
+    @ApiResponse(
+      responseCode = "409",
+      description = "ISBN already exists",
+      content = @Content(
+        schema = @Schema(implementation = ErrorResponse.class)
+      )
+    )
+  })
   @PostMapping
   public ResponseEntity<BookResponse> createBook(@Valid @RequestBody BookRequest bookRequest) {
     BookResponse createdBook = bookService.create(bookRequest);
