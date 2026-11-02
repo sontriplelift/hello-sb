@@ -115,7 +115,7 @@ public class AuthorService {
     }
     Author savedAuthor = authorRepository.save(authorMapper.toEntity(authorRequest));
 
-    logger.info("Created author id={} email={}", savedAuthor.getId(), savedAuthor.getEmail());
+    logger.info("Created author id={}", savedAuthor.getId());
     
     return authorMapper.toResponse(savedAuthor);
   }

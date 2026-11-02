@@ -55,7 +55,8 @@ File DB (`data/`) **không** được đưa lên Git. Trên máy mới: chạy a
 | 5 | ✅ Đạt (review lần 2) | Làm cả cách A lẫn B (`instanceof org.springframework.web.ErrorResponse`), `validateBirthYear()` đã tách. Còn nợ: chỉ `logger.error` khi thực sự là lỗi 500 |
 | 6 | ✅ Đạt (review lần 3) | Quan hệ LAZY, sửa N+1 bằng `@EntityGraph`, tắt OSIV, 409 khi xoá author có sách, chuẩn hoá scale `price`. Giữ `/api/books/join-fetch` làm ví dụ (chủ động) |
 | 7 | ✅ Đạt (review lần 2) | Tự đổi sang whitelist trường sort (tốt hơn cách mentor gợi ý). Mentor sửa giúp phần escape `%` `_` trong `LIKE`. Chủ động: sort mặc định `id DESC`, giữ code comment. Còn nợ: `throw ex` trong handler `InvalidDataAccessApiUsageException` |
-| 8 | ⏳ Đang làm | Đã tách 3 file profile; chạy được prod với user `library_app` ("Cách A"). Chưa review |
+| 8 | ✅ Đạt (review lần 3) | 3 profile, `LibraryProperties` + `@Validated`, log SQL kèm tham số, prod ghi log ra file và tắt Swagger. Mọi endpoint đều khai báo mã thành công/lỗi với schema `ErrorResponse`. Làm hết các điểm 💡 (bỏ email khỏi log, `@NotNull` cho `api`…). Không còn nợ |
+| 9 | ⏳ Đang làm | Flyway: quản lý schema bằng migration |
 
 ---
 
@@ -708,7 +709,7 @@ Thêm dependency:
 | # | Việc | Kết quả mong đợi |
 |---|---|---|
 | 1 | Chạy mặc định (không chỉ định profile) | Log có `The following 1 profile is active: "dev"` |
-| 2 | Profile prod, thiếu biến môi trường | Không khởi động được, lỗi chỉ rõ thiếu `DB_URL` |
+| 2 | Profile prod, thiếu biến môi trường | Không khởi động được. Lỗi là `'url' must start with "jdbc"`: Spring giữ nguyên chuỗi `${DB_URL}` làm giá trị, chứ không báo thẳng là thiếu biến |
 | 3 | Profile prod, có biến môi trường | Chạy được, schema được validate, không log SQL, có file `logs/library.log` |
 | 4 | Đổi `length` của một cột rồi chạy prod | Lỗi `Schema-validation: ...` |
 | 5 | Xoá `library.api.title` | Không khởi động được, báo rõ field bị thiếu |
@@ -727,3 +728,86 @@ Thêm dependency:
 6. Vì sao nên tắt (hoặc bảo vệ) Swagger trên production?
 
 ➡️ Làm xong thì nhắn **"review step 8"** kèm câu trả lời.
+
+---
+
+## STEP 9: Quản lý schema bằng Flyway
+
+**Mục tiêu:** từ nay schema database do **file migration SQL** (có version, nằm trong Git) quyết định, chứ không để Hibernate tự sinh nữa. Mọi thay đổi schema đều được ghi lại, chạy theo đúng thứ tự, và giống nhau trên mọi máy và mọi môi trường.
+
+> Vì sao chọn Flyway cho Step 9? Trong các mục tuỳ chọn ở Lộ trình, MySQL/PostgreSQL và Docker đang bị chặn bởi proxy và quyền admin. Flyway chạy được ngay với H2. Khi sau này đổi sang MySQL/PostgreSQL thì Flyway cũng là công cụ dùng để tạo schema trên DB mới.
+
+### 9.0 Trả nợ Step 8
+Không còn nợ 🎉
+
+### 9.1 Thêm dependency
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-flyway</artifactId>
+</dependency>
+```
+- **Không** ghi `<version>`, vì Spring Boot 4.1.1 đã quản lý (Flyway 12.4). H2 được hỗ trợ sẵn trong `flyway-core`, không cần thêm module.
+- ⚠️ Ở Boot 4, phải dùng **starter**. Nếu chỉ thêm `flyway-core` như các bài hướng dẫn cũ thì Flyway sẽ **không tự chạy**.
+- Nhớ: sửa `pom.xml` thì phải tắt app rồi chạy lại.
+
+### 9.2 Bắt đầu với database trống
+DB hiện tại do Hibernate tạo (`ddl-auto: update`). Để Flyway dựng lại từ đầu:
+1. Tắt app và **Disconnect DBeaver**.
+2. Đổi tên thư mục `data` thành `data-backup-step8`. Đây là bản backup: nếu hỏng thì đổi tên lại là có DB cũ.
+3. Chưa chạy app vội. Làm tiếp 9.3 và 9.4 trước.
+
+### 9.3 Migration đầu tiên: `V1__create_tables.sql`
+Tạo thư mục `src/main/resources/db/migration` (thư mục mặc định Flyway đọc), rồi tạo file `V1__create_tables.sql` chứa lệnh `CREATE TABLE` cho `authors` và `books`: khoá chính, `NOT NULL`, unique email, unique ISBN `uk_books_isbn`, khoá ngoại `author_id`.
+
+- Tên file: `V` + version + **hai** dấu gạch dưới + mô tả.
+- **Kiểu cột phải khớp Entity**, vì Hibernate sẽ `validate`. Đừng đoán kiểu, hãy copy từ DDL mà Hibernate đã sinh:
+  - mở DB backup trong DBeaver và chạy lệnh `SCRIPT NO DATA`;
+  - hoặc chuột phải vào bảng, chọn *Generate SQL → DDL*.
+- Chú ý kiểu của cột `created_at` (`Instant`) và `price`. Đây là hai chỗ dễ sai nhất.
+
+### 9.4 Dữ liệu mẫu: `V2__seed_data.sql`
+- Chuyển phần `INSERT` tác giả và sách từ [seed-data.sql](seed-data.sql) vào `V2__seed_data.sql`.
+- Trong `docs/seed-data.sql` chỉ giữ lại lệnh `CREATE USER library_app ...` (user DB là việc của người quản trị, không phải của app), và sửa comment đầu file cho đúng.
+- Trong project này, dev và prod dùng chung một file H2, nên để seed trong migration chung cho đơn giản. Thực tế sẽ khác: xem câu hỏi 5.
+
+### 9.5 Giao schema cho Flyway
+- `application-dev.yaml`: đổi `ddl-auto: update` thành **`validate`**. Hibernate chỉ còn **kiểm tra**, không tạo hay sửa bảng nữa.
+- Chạy app. Đọc log để thấy Flyway chạy V1, V2, rồi Hibernate validate thành công.
+- Mở DBeaver và xem bảng mới `flyway_schema_history`.
+- Chạy lại lệnh `CREATE USER` trong `docs/seed-data.sql`, vì DB mới chưa có user `library_app` dùng cho prod.
+
+### 9.6 Sửa một lỗi schema thật bằng migration: `V3__...`
+Mentor phát hiện: `AuthorRequest` cho phép `name` dài tối đa **100** ký tự (`@Size(max = 100)`), nhưng cột `authors.name` chỉ có **90** (`@Column(length = 90)`).
+1. **Trước khi sửa**, tạo một author có tên dài khoảng 95 ký tự. Ghi lại status và message mà API trả về. Vì sao lại ra mã đó?
+2. Tạo `V3__widen_author_name.sql` để nới cột lên 100. Gợi ý: tìm cú pháp `ALTER TABLE ... ALTER COLUMN ...` của H2.
+3. Sửa `length` trong `Author` cho khớp.
+4. Chạy lại: Flyway chỉ chạy **V3** (V1 và V2 đã chạy rồi), validate qua, và tạo lại author tên 95 ký tự thì thành công.
+
+> Nhắc lại bẫy đã gặp: `ddl-auto: update` **không** sửa cột đã tồn tại. Đây chính là việc Flyway làm được.
+
+### 9.7 Thí nghiệm: sửa migration đã chạy
+Thêm một dòng comment `-- test` vào `V1__create_tables.sql` rồi chạy lại app. Quan sát lỗi. Sau đó **xoá dòng vừa thêm** để app chạy lại bình thường.
+
+### 9.8 Kiểm tra
+| # | Việc | Kết quả mong đợi |
+|---|---|---|
+| 1 | Chạy dev lần đầu với DB trống | Log Flyway áp dụng V1, V2, V3; `flyway_schema_history` có 3 dòng thành công |
+| 2 | Chạy lại lần nữa | Log `Schema "PUBLIC" is up to date. No migration necessary.` |
+| 3 | `GET /api/books` | 15 cuốn từ V2 |
+| 4 | Tên author 95 ký tự, **trước** V3 | Ghi lại kết quả (đoán trước được không?) |
+| 5 | Tên author 95 ký tự, **sau** V3 | 201 |
+| 6 | Tên author 101 ký tự | 400 do validation (không phải lỗi DB) |
+| 7 | Sửa V1 sau khi đã chạy | Không khởi động được, lỗi **checksum mismatch** |
+| 8 | Profile prod với `library_app` | Chạy được: Flyway báo up to date, Hibernate validate qua |
+| 9 | Đổi tạm `length` của một `@Column` (ví dụ `isbn`) | Hibernate validate báo lỗi, cả ở **dev**. Nhớ đổi lại |
+
+### 9.9 Câu hỏi tự tìm hiểu
+1. Flyway khác `ddl-auto: update` thế nào? Vì sao gần như không ai dùng `update` (hay `create`) trên production?
+2. Vì sao **không được sửa** file migration đã chạy? Checksum dùng để làm gì? Nếu migration đã chạy bị sai thì phải làm gì?
+3. Khi khởi động, Flyway chạy **trước** hay **sau** Hibernate? Vì sao thứ tự này quan trọng khi dùng `ddl-auto: validate`?
+4. `spring.flyway.baseline-on-migrate` dùng trong trường hợp nào? (Gợi ý: nếu ở 9.2 ta **giữ** DB cũ, đã có bảng sẵn, thì sao?)
+5. Dữ liệu mẫu chỉ dành cho dev thì nên để ở đâu để prod không chạy nó? (Gợi ý: `spring.flyway.locations` theo profile.) Nếu dev và prod dùng **chung một DB** như project này thì cách đó vướng gì?
+6. Migration **versioned** (`V...`) và **repeatable** (`R__...`) khác nhau thế nào? Nêu một ví dụ nên dùng repeatable.
+
+➡️ Làm xong thì nhắn **"review step 9"** kèm câu trả lời.
