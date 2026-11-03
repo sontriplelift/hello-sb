@@ -22,3 +22,8 @@ logging:
 
   file:
     name: logs/library.log
+
+library:
+  security:
+    admin-password: ${ADMIN_PASSWORD}
+    reader-password: ${READER_PASSWORD}
