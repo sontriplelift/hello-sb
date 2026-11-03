@@ -56,20 +56,22 @@ Claude đóng vai **mentor**: giao bài, review, giải thích. **Không phải*
 - Lỗi trả về theo record `ErrorResponse` (`timestamp`, `status`, `error`, `message`, `path`, `fieldErrors`) qua `GlobalExceptionHandler`.
   - Ánh xạ exception: `ResourceNotFoundException` → 404, `DuplicateResourceException` / `ResourceInUseException` → 409, `BusinessException` / `InvalidRequestException` → 400.
 - Phân trang trả về `PageResponse<T>`. `max-page-size: 50`. `open-in-view: false`.
-- Profiles: `application.yaml` (chung, mặc định `dev`), `application-dev.yaml` (H2, `ddl-auto: update`), `application-prod.yaml` (`ddl-auto: validate`, DB lấy từ biến môi trường `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`).
+- Profiles: `application.yaml` (chung, mặc định `dev`), `application-dev.yaml` (H2), `application-prod.yaml` (DB lấy từ biến môi trường `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`). Cả hai đều `ddl-auto: validate`.
+- **Schema do Flyway quản lý** (từ Step 9): `src/main/resources/db/migration/V1__create_tables.sql`, `V2__seed_data.sql`, `V3__widen_author_name.sql`… Thay đổi schema = thêm file `V<n+1>__...`, không sửa file đã chạy. Lưu ý: Hibernate `validate` chỉ kiểm tra bảng, cột và kiểu, **không** kiểm tra độ dài hay precision.
 - Dependency **không** do Spring Boot quản lý thì mới ghi `<version>` (ví dụ springdoc-openapi **3.x** dành cho Boot 4).
 
 ## Thiết lập trên máy mới (hướng dẫn học viên nếu họ vừa clone)
 1. Cài **JDK 21**, IDE (VS Code với Extension Pack for Java, hoặc IntelliJ), **DBeaver**.
-2. Chạy `.\mvnw.cmd spring-boot:run`. Lần đầu sẽ tải Maven và các thư viện. Hibernate tự tạo bảng trong `data/library_db.mv.db`.
+2. Chạy `.\mvnw.cmd spring-boot:run`. Lần đầu sẽ tải Maven và các thư viện. Flyway tự tạo bảng và dữ liệu mẫu (4 tác giả, 15 cuốn sách) trong `data/library_db.mv.db`.
 3. Mở DBeaver → kết nối loại **H2 Embedded V.2**, JDBC URL `jdbc:h2:file:<đường-dẫn-project>/data/library_db;AUTO_SERVER=TRUE`, user `sa`, mật khẩu để trống. **Phải chạy app trước rồi mới connect.**
-4. Chạy [docs/seed-data.sql](docs/seed-data.sql) trong DBeaver để có 4 tác giả, 15 cuốn sách, và user `library_app` dùng khi test profile prod.
+4. Chạy [docs/seed-data.sql](docs/seed-data.sql) trong DBeaver để tạo user `library_app`, dùng khi test profile prod.
 
 ## Các "bẫy" môi trường đã gặp (để chẩn đoán nhanh)
 - **`mvnw.cmd` lần đầu báo `Rename-Item ... Access denied`**: phần mềm diệt virus đang khoá thư mục vừa giải nén. Chạy lại lệnh là xong.
-- **DBeaver báo lỗi H2 `90134 ... TcpServer is denied`**: DBeaver mở DB trước app nên nhận vai làm chủ (`AUTO_SERVER`) rồi bị chặn. Disconnect, chạy app trước, rồi connect lại.
+- **DBeaver báo lỗi H2 `90134 ... TcpServer is denied`**: DBeaver mở DB trước app nên nhận vai làm chủ (`AUTO_SERVER`) rồi bị chặn. Disconnect, chạy app trước, rồi connect lại. Nghĩa là với URL có `AUTO_SERVER=TRUE`, DBeaver **không thể** mở DB khi app đang tắt. Nếu app không khởi động được (ví dụ Flyway lỗi) mà cần sửa DB, dùng một connection DBeaver **không có** `AUTO_SERVER=TRUE`, hoặc dùng H2 Shell, rồi đóng lại trước khi bật app.
 - **PowerShell `$env:X = ""` xoá luôn biến môi trường.** Spring không thay được `${X}` nên giữ nguyên chuỗi đó làm giá trị. Ví dụ đã gặp: lỗi `Wrong user name or password`. Cách tránh: dùng user DB có mật khẩu (`library_app`), hoặc truyền `--spring.datasource.password=` qua `-Dspring-boot.run.arguments`.
 - **Sửa `pom.xml` thì phải tắt app rồi chạy lại.** DevTools chỉ tự restart khi đổi code Java hoặc file YAML.
 - **`ddl-auto: update` không sửa cột đã tồn tại** (đổi `nullable`, `precision`…). Phải `DROP TABLE` rồi để Hibernate tạo lại, hoặc tự `ALTER`.
 - **Jackson 3:** annotation vẫn ở `com.fasterxml.jackson.annotation`, phần lõi chuyển sang `tools.jackson`. Ở Spring Data 4, `PropertyReferenceException` nằm trong `org.springframework.data.core`.
+- **Flyway + DevTools: tạo file migration trong khi app đang chạy.** Vừa tạo file rỗng là DevTools restart, Flyway chạy luôn file rỗng đó và ghi `checksum = 0, success = TRUE`. Khi viết nội dung vào thì app báo `Migration checksum mismatch`. Đừng dùng `repair`, vì nó chỉ cập nhật checksum, câu SQL vẫn không chạy. Cách sửa: tắt app, `DELETE FROM "flyway_schema_history" WHERE "version" = 'N'`, rồi chạy lại.
 - **`@Query` JPQL không tự escape `%` `_` trong `LIKE`** (derived query thì có). Project đang dùng `ESCAPE '!'` cùng `escapeLike()` trong `BookService`.

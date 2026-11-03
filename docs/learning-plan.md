@@ -32,14 +32,16 @@ Khi xong, API phải làm được:
 | 6 | Entity `Book` + quan hệ | `@ManyToOne`, `@OneToMany`, lazy loading, lỗi N+1 |
 | 7 | Truy vấn nâng cao | Derived query, `@Query`, phân trang, sắp xếp, tìm kiếm |
 | 8 | Hoàn thiện | Profiles (dev/prod), logging, Swagger |
-| 9 | *(Tuỳ chọn)* | Chuyển sang MySQL/PostgreSQL, Flyway, Spring Security/JWT, Docker |
+| 9 | Flyway | Migration có version, checksum, `ddl-auto: validate` |
+| 10 | Spring Security | Filter chain, HTTP Basic, role, 401 và 403, `PasswordEncoder` |
+| 11+ | *(Tuỳ chọn)* | JWT, chuyển sang MySQL/PostgreSQL, Docker (khi có quyền và mạng) |
 
 **Quy trình:** mentor giao step → bạn tự code → nhắn **"review step X"** → mentor chỉ ra ✅ điểm tốt, ⚠️ điểm cần sửa, 💡 gợi ý → đạt thì sang step tiếp theo.
 
 ### Ghi chú về database
 Máy không có quyền admin, và proxy công ty chặn tải PostgreSQL/MySQL. Vì vậy project dùng **H2** (database nhúng, lấy qua Maven Central, không cần cài đặt). Khi IT cài MySQL hoặc PostgreSQL thì chỉ cần đổi dependency và cấu hình (Step 9).
 
-File DB (`data/`) **không** được đưa lên Git. Trên máy mới: chạy app một lần để Hibernate tạo bảng, rồi chạy [seed-data.sql](seed-data.sql) trong DBeaver. Hướng dẫn cho Claude nằm ở [CLAUDE.md](../CLAUDE.md).
+File DB (`data/`) **không** được đưa lên Git. Trên máy mới: chạy app, Flyway sẽ tự tạo bảng và dữ liệu mẫu (Step 9). Sau đó chạy [seed-data.sql](seed-data.sql) trong DBeaver để tạo user `library_app` cho profile prod. Hướng dẫn cho Claude nằm ở [CLAUDE.md](../CLAUDE.md).
 
 ---
 
@@ -56,7 +58,8 @@ File DB (`data/`) **không** được đưa lên Git. Trên máy mới: chạy a
 | 6 | ✅ Đạt (review lần 3) | Quan hệ LAZY, sửa N+1 bằng `@EntityGraph`, tắt OSIV, 409 khi xoá author có sách, chuẩn hoá scale `price`. Giữ `/api/books/join-fetch` làm ví dụ (chủ động) |
 | 7 | ✅ Đạt (review lần 2) | Tự đổi sang whitelist trường sort (tốt hơn cách mentor gợi ý). Mentor sửa giúp phần escape `%` `_` trong `LIKE`. Chủ động: sort mặc định `id DESC`, giữ code comment. Còn nợ: `throw ex` trong handler `InvalidDataAccessApiUsageException` |
 | 8 | ✅ Đạt (review lần 3) | 3 profile, `LibraryProperties` + `@Validated`, log SQL kèm tham số, prod ghi log ra file và tắt Swagger. Mọi endpoint đều khai báo mã thành công/lỗi với schema `ErrorResponse`. Làm hết các điểm 💡 (bỏ email khỏi log, `@NotNull` cho `api`…). Không còn nợ |
-| 9 | ⏳ Đang làm | Flyway: quản lý schema bằng migration |
+| 9 | ✅ Đạt (review lần 2) | Flyway chạy đủ V1–V3, đặt lại tên constraint, V3 nới cột đúng cách, dev và prod đều validate qua, `seed-data.sql` chỉ còn `CREATE USER`. Làm cả 💡 `devtools.restart.additional-exclude`. Còn nợ: thư mục `data-backup-step8` chưa được xử lý (chưa ignore, chưa xoá) |
+| 10 | ⏳ Đang làm | Spring Security: HTTP Basic, phân quyền theo role, lỗi 401/403 dạng `ErrorResponse` |
 
 ---
 
@@ -765,6 +768,8 @@ Tạo thư mục `src/main/resources/db/migration` (thư mục mặc định Fly
   - mở DB backup trong DBeaver và chạy lệnh `SCRIPT NO DATA`;
   - hoặc chuột phải vào bảng, chọn *Generate SQL → DDL*.
 - Chú ý kiểu của cột `created_at` (`Instant`) và `price`. Đây là hai chỗ dễ sai nhất.
+- ⚠️ DDL copy từ DBeaver có kèm các lệnh `CREATE UNIQUE INDEX PRIMARY_KEY_x ...` và `... _INDEX_x`. Đây là index H2 **tự sinh** cho khoá chính, unique và khoá ngoại. Chạy lại trên DB trống sẽ lỗi `Index ... already exists`, nên phải **bỏ** các dòng đó. Nên đặt lại tên constraint cho dễ đọc (`pk_authors`, `uk_authors_email`, `fk_books_author`…) thay vì giữ tên tự sinh.
+- Nếu migration lỗi giữa chừng: H2 không rollback được lệnh DDL, nên DB sẽ còn bảng dở dang và một dòng `success = FALSE` trong `flyway_schema_history`. Với DB mới tạo thì cách đơn giản nhất là tắt app, xoá thư mục `data`, sửa file migration, rồi chạy lại.
 
 ### 9.4 Dữ liệu mẫu: `V2__seed_data.sql`
 - Chuyển phần `INSERT` tác giả và sách từ [seed-data.sql](seed-data.sql) vào `V2__seed_data.sql`.
@@ -800,7 +805,7 @@ Thêm một dòng comment `-- test` vào `V1__create_tables.sql` rồi chạy l�
 | 6 | Tên author 101 ký tự | 400 do validation (không phải lỗi DB) |
 | 7 | Sửa V1 sau khi đã chạy | Không khởi động được, lỗi **checksum mismatch** |
 | 8 | Profile prod với `library_app` | Chạy được: Flyway báo up to date, Hibernate validate qua |
-| 9 | Đổi tạm `length` của một `@Column` (ví dụ `isbn`) | Hibernate validate báo lỗi, cả ở **dev**. Nhớ đổi lại |
+| 9 | ~~Đổi tạm `length` của một `@Column` (ví dụ `isbn`)~~ | ~~Hibernate validate báo lỗi~~ **Mentor ghi sai:** `validate` **không** kiểm tra độ dài cột (đã thử: Entity 100, cột 90, app vẫn chạy). Thử đổi **kiểu** (ví dụ `Integer birthYear` thành `String`) hoặc **tên cột** thì mới báo lỗi |
 
 ### 9.9 Câu hỏi tự tìm hiểu
 1. Flyway khác `ddl-auto: update` thế nào? Vì sao gần như không ai dùng `update` (hay `create`) trên production?
@@ -811,3 +816,110 @@ Thêm một dòng comment `-- test` vào `V1__create_tables.sql` rồi chạy l�
 6. Migration **versioned** (`V...`) và **repeatable** (`R__...`) khác nhau thế nào? Nêu một ví dụ nên dùng repeatable.
 
 ➡️ Làm xong thì nhắn **"review step 9"** kèm câu trả lời.
+
+---
+
+## STEP 10: Bảo mật API bằng Spring Security
+
+**Mục tiêu:** ai cũng **xem** được sách và tác giả, nhưng chỉ thủ thư (`ADMIN`) mới được **thêm, sửa, xoá**. Lỗi 401 và 403 cũng phải trả về đúng dạng `ErrorResponse` như các lỗi khác.
+
+Step này dùng **HTTP Basic** với user khai báo trong code (in-memory), để tập trung vào cách Spring Security hoạt động: filter chain, xác thực và phân quyền. JWT để dành cho step sau.
+
+### 10.0 Trả nợ Step 9
+- Thư mục `data-backup-step8` đang ở trạng thái untracked. Hãy **xoá** nó nếu DB mới đã chạy ổn, hoặc thêm vào `.gitignore`. File DB **không** được đưa lên Git.
+
+### 10.1 Thêm dependency và quan sát
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+```
+Không ghi `<version>`. Sửa `pom.xml` thì nhớ tắt app rồi chạy lại.
+
+**Chưa viết code vội.** Chạy app rồi thử:
+- `GET /api/books` bằng curl hoặc Postman: nhận được gì?
+- Mở Swagger UI trên trình duyệt: chuyện gì xảy ra?
+- Tìm trong log dòng `Using generated security password: ...`. Thử gọi lại API với user `user` và password đó (curl có `-u user:<password>`).
+
+Ghi lại kết quả. Câu hỏi 1 sẽ hỏi về chuyện này.
+
+### 10.2 `SecurityConfig`: phân quyền
+Tạo `config/SecurityConfig` (`@Configuration`), khai báo một bean `SecurityFilterChain`:
+- `GET /api/**`: ai cũng gọi được (`permitAll`).
+- `POST`, `PUT`, `DELETE` trên `/api/**`: chỉ role `ADMIN`.
+- Swagger (`/swagger-ui/**`, `/swagger-ui.html`, `/v3/api-docs/**`): ai cũng xem được.
+- **`/error`: `permitAll`.** Nếu quên dòng này, một request lỗi 404 hoặc 400 có thể biến thành 401. Kiểm tra case 7 và 8 ở bảng 10.7 để thấy.
+- Mọi request còn lại: phải đăng nhập (`authenticated()`).
+- Bật `httpBasic`, đặt session là `STATELESS`, tắt `csrf` (vì sao? xem câu hỏi 3).
+
+Gợi ý:
+- Spring Security 7 chỉ còn kiểu cấu hình **lambda** (`http.authorizeHttpRequests(auth -> auth...)`). Các bài hướng dẫn cũ dùng `.and()` hoặc `WebSecurityConfigurerAdapter` thì **không** dùng được nữa.
+- Dùng `requestMatchers(HttpMethod.GET, "/api/**")`. **Thứ tự rule rất quan trọng**: rule nào khớp trước thì áp dụng rule đó.
+
+### 10.3 User và mật khẩu
+Khai báo bean `UserDetailsService` với `InMemoryUserDetailsManager`, gồm 2 user:
+
+| Username | Role | Được làm gì |
+|---|---|---|
+| `librarian` | `ADMIN` | Xem, thêm, sửa, xoá |
+| `reader` | `USER` | Chỉ xem |
+
+- Khai báo bean `PasswordEncoder` bằng `PasswordEncoderFactories.createDelegatingPasswordEncoder()`, rồi mã hoá mật khẩu bằng encoder đó. **Không** dùng `withDefaultPasswordEncoder()` (đã deprecated) và **không** dùng `NoOpPasswordEncoder`.
+- **Không** ghi mật khẩu cứng trong code Java. Áp dụng cách làm ở Step 8:
+  - thêm vào `LibraryProperties` phần `security` (ví dụ `library.security.admin-password`, `library.security.reader-password`), có `@NotBlank`;
+  - `application-dev.yaml` ghi giá trị cho dev;
+  - `application-prod.yaml` lấy từ biến môi trường `${ADMIN_PASSWORD}`, `${READER_PASSWORD}`.
+- Khi có bean `UserDetailsService` của bạn, dòng `Using generated security password` sẽ biến mất. Vì sao?
+
+### 10.4 Lỗi 401 và 403 theo dạng `ErrorResponse`
+Mặc định, khi bị chặn, Spring Security trả về body rỗng hoặc một JSON khác format của project. Bạn sẽ thấy `GlobalExceptionHandler` **không bắt được** lỗi này (câu hỏi 4).
+
+Hãy tự viết 2 class (ví dụ trong package `config` hoặc `security`):
+- Một class implements `AuthenticationEntryPoint` để xử lý **401**: chưa đăng nhập, hoặc sai mật khẩu.
+- Một class implements `AccessDeniedHandler` để xử lý **403**: đã đăng nhập nhưng không đủ quyền.
+
+Mỗi class ghi ra response một `ErrorResponse` (`status`, `error`, `message`, `path`…), với `Content-Type: application/json`. Rồi đăng ký cả hai vào filter chain bằng `exceptionHandling(...)`.
+
+Gợi ý:
+- Để chuyển `ErrorResponse` thành JSON, inject bean `JsonMapper` của Jackson 3 (`tools.jackson.databind.json.JsonMapper`, Boot 4 đã tạo sẵn). Đừng tự `new ObjectMapper()`, vì như vậy sẽ mất cấu hình chung, ví dụ cách ghi `Instant`.
+- Với 401, giữ header `WWW-Authenticate: Basic realm="..."`. Header này báo cho client biết cần đăng nhập theo kiểu nào.
+
+### 10.5 Swagger có nút "Authorize"
+Trong `OpenApiConfig`, khai báo một security scheme kiểu HTTP `basic`, rồi gắn yêu cầu bảo mật cho các API thêm, sửa, xoá. Có thể dùng annotation `@SecurityScheme` và `@SecurityRequirement`, hoặc cấu hình qua `OpenAPI` bean.
+
+Kết quả mong đợi: Swagger UI có nút 🔓 **Authorize**. Đăng nhập `librarian` xong thì "Try it out" POST thành công.
+
+### 10.6 Ghi log ai đã làm gì
+Sửa các dòng log `info` khi tạo, sửa, xoá (đã có từ Step 8) để kèm **username** của người thực hiện, ví dụ `Created book id=16 by librarian`.
+
+Gợi ý: có hai cách, hãy tự chọn và giải thích vì sao chọn cách đó.
+- Trong Controller, dùng tham số `@AuthenticationPrincipal` hoặc `Principal`, rồi truyền xuống.
+- Trong Service, lấy từ `SecurityContextHolder`.
+
+### 10.7 Kiểm tra
+| # | Việc | Kết quả mong đợi |
+|---|---|---|
+| 1 | `GET /api/books`, không đăng nhập | 200 |
+| 2 | `POST /api/authors`, không đăng nhập | 401, body `ErrorResponse`, có header `WWW-Authenticate` |
+| 3 | `POST /api/authors` với `reader` | 403, body `ErrorResponse` |
+| 4 | `POST /api/authors` với `librarian` | 201 |
+| 5 | `POST` với `librarian` nhưng sai mật khẩu | 401 |
+| 6 | `GET /api/books` kèm mật khẩu **sai** | Đoán trước rồi thử. Giải thích kết quả |
+| 7 | `GET /api/books/999999`, không đăng nhập | **404** (không phải 401) |
+| 8 | `POST` với `librarian`, body sai validation | **400** kèm `fieldErrors` |
+| 9 | `DELETE` author còn sách, với `librarian` | 409 (các lỗi cũ vẫn chạy đúng) |
+| 10 | Swagger UI không cần đăng nhập; Authorize với `librarian` rồi POST | 201 |
+| 11 | Chạy prod **không** đặt `ADMIN_PASSWORD` | App không khởi động, báo rõ thiếu cấu hình |
+| 12 | Log khi tạo, sửa, xoá | Có username; **không** có mật khẩu |
+
+### 10.8 Câu hỏi tự tìm hiểu
+1. Vì sao vừa thêm dependency mà mọi endpoint đã bị khoá? User `user` và mật khẩu trong log ở đâu ra? (Gợi ý: auto-configuration.)
+2. 401 Unauthorized và 403 Forbidden khác nhau thế nào? Mỗi mã ứng với case nào trong bảng 10.7?
+3. CSRF là kiểu tấn công gì? Vì sao API này tắt được CSRF? Khi nào **không** được tắt?
+4. Vì sao `@RestControllerAdvice` không bắt được lỗi 401 và 403 của Spring Security? (Gợi ý: Filter chain đứng ở đâu so với `DispatcherServlet`?)
+5. Mật khẩu đã mã hoá trông như `{bcrypt}$2a$10$...`. Phần `{bcrypt}` dùng để làm gì? Vì sao phải dùng **hash** (BCrypt) chứ không **mã hoá hai chiều**, và vì sao hai lần hash cùng một mật khẩu lại ra hai chuỗi khác nhau?
+6. HTTP Basic gửi gì trong mỗi request? Base64 có phải là mã hoá không? Vì sao HTTP Basic bắt buộc phải đi cùng HTTPS?
+7. `hasRole("ADMIN")` và `hasAuthority("ROLE_ADMIN")` khác nhau thế nào?
+
+➡️ Làm xong thì nhắn **"review step 10"** kèm câu trả lời.
