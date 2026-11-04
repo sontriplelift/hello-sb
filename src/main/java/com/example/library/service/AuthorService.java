@@ -24,6 +24,7 @@ import com.example.library.exception.ResourceNotFoundException;
 import com.example.library.mapper.AuthorMapper;
 import com.example.library.repository.AuthorRepository;
 import com.example.library.repository.BookRepository;
+import com.example.library.security.SecurityUtils;
 
 @Service
 public class AuthorService {
@@ -115,7 +116,7 @@ public class AuthorService {
     }
     Author savedAuthor = authorRepository.save(authorMapper.toEntity(authorRequest));
 
-    logger.info("Created author id={}", savedAuthor.getId());
+    logger.info("Created author id={} by {}", savedAuthor.getId(), SecurityUtils.getCurrentUsername());
     
     return authorMapper.toResponse(savedAuthor);
   }
@@ -131,7 +132,7 @@ public class AuthorService {
     }
 
     authorMapper.updateEntity(author, authorRequest);
-    logger.info("Updated author id={}", id);
+    logger.info("Updated author id={} by {}", id, SecurityUtils.getCurrentUsername());
     return authorMapper.toResponse(author);
   }
 
@@ -144,6 +145,6 @@ public class AuthorService {
           "Cannot delete author with associated books. Author ID: " + id + " has " + bookCount + " book(s)");
     }
     authorRepository.delete(existingAuthor);
-    logger.info("Deleted author id={}", id);
+    logger.info("Deleted author id={} by {}", id, SecurityUtils.getCurrentUsername());
   }
 }

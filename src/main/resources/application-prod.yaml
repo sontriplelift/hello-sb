@@ -25,5 +25,5 @@ logging:
 
 library:
   security:
-    admin-password: ${ADMIN_PASSWORD}
-    reader-password: ${READER_PASSWORD}
+    admin-password: ${ADMIN_PASSWORD:}
+    reader-password: ${READER_PASSWORD:}

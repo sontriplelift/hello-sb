@@ -47,6 +47,7 @@ Claude đóng vai **mentor**: giao bài, review, giải thích. **Không phải*
 - Dùng `import jakarta.persistence.*` (wildcard) trong Entity.
 - Sắp xếp mặc định `id DESC`, để hiển thị bản ghi mới nhất trước.
 - Giữ lại code cũ dưới dạng comment, không xoá.
+- Thư mục `data-backup-step8` (bản DB backup) được **chủ động** commit và push lên GitHub, vì project chỉ để học.
 - Sort được kiểm tra bằng **whitelist** trong Service (ném `InvalidRequestException`), không dựa vào exception của Spring Data.
 
 ## Công nghệ và quy ước của project

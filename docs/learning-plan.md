@@ -34,7 +34,8 @@ Khi xong, API phải làm được:
 | 8 | Hoàn thiện | Profiles (dev/prod), logging, Swagger |
 | 9 | Flyway | Migration có version, checksum, `ddl-auto: validate` |
 | 10 | Spring Security | Filter chain, HTTP Basic, role, 401 và 403, `PasswordEncoder` |
-| 11+ | *(Tuỳ chọn)* | JWT, chuyển sang MySQL/PostgreSQL, Docker (khi có quyền và mạng) |
+| 11 | JWT | Đăng nhập lấy token, `JwtEncoder`/`JwtDecoder`, OAuth2 Resource Server, claim và authority |
+| 12+ | *(Tuỳ chọn)* | Refresh token, chuyển sang MySQL/PostgreSQL, Docker (khi có quyền và mạng) |
 
 **Quy trình:** mentor giao step → bạn tự code → nhắn **"review step X"** → mentor chỉ ra ✅ điểm tốt, ⚠️ điểm cần sửa, 💡 gợi ý → đạt thì sang step tiếp theo.
 
@@ -59,7 +60,8 @@ File DB (`data/`) **không** được đưa lên Git. Trên máy mới: chạy a
 | 7 | ✅ Đạt (review lần 2) | Tự đổi sang whitelist trường sort (tốt hơn cách mentor gợi ý). Mentor sửa giúp phần escape `%` `_` trong `LIKE`. Chủ động: sort mặc định `id DESC`, giữ code comment. Còn nợ: `throw ex` trong handler `InvalidDataAccessApiUsageException` |
 | 8 | ✅ Đạt (review lần 3) | 3 profile, `LibraryProperties` + `@Validated`, log SQL kèm tham số, prod ghi log ra file và tắt Swagger. Mọi endpoint đều khai báo mã thành công/lỗi với schema `ErrorResponse`. Làm hết các điểm 💡 (bỏ email khỏi log, `@NotNull` cho `api`…). Không còn nợ |
 | 9 | ✅ Đạt (review lần 2) | Flyway chạy đủ V1–V3, đặt lại tên constraint, V3 nới cột đúng cách, dev và prod đều validate qua, `seed-data.sql` chỉ còn `CREATE USER`. Làm cả 💡 `devtools.restart.additional-exclude`. Còn nợ: thư mục `data-backup-step8` chưa được xử lý (chưa ignore, chưa xoá) |
-| 10 | ⏳ Đang làm | Spring Security: HTTP Basic, phân quyền theo role, lỗi 401/403 dạng `ErrorResponse` |
+| 10 | ✅ Đạt (review lần 2) | Phân quyền đúng, `/error` mở nên 404/400/409 vẫn đúng, mọi 401/403 (kể cả sai mật khẩu) đều theo `ErrorResponse`, Swagger Authorize, sửa được bẫy `${ADMIN_PASSWORD:}`. Chủ động: push `data-backup-step8` lên GitHub. Còn nợ: giải thích lựa chọn ở 10.6, thống nhất thụt lề |
+| 11 | ⏳ Đang làm | JWT: đăng nhập lấy token, OAuth2 Resource Server, ánh xạ role từ claim |
 
 ---
 
@@ -910,7 +912,7 @@ Gợi ý: có hai cách, hãy tự chọn và giải thích vì sao chọn cách
 | 8 | `POST` với `librarian`, body sai validation | **400** kèm `fieldErrors` |
 | 9 | `DELETE` author còn sách, với `librarian` | 409 (các lỗi cũ vẫn chạy đúng) |
 | 10 | Swagger UI không cần đăng nhập; Authorize với `librarian` rồi POST | 201 |
-| 11 | Chạy prod **không** đặt `ADMIN_PASSWORD` | App không khởi động, báo rõ thiếu cấu hình |
+| 11 | Chạy prod **không** đặt `ADMIN_PASSWORD` | App không khởi động, báo rõ thiếu cấu hình. ⚠️ Chỉ viết `${ADMIN_PASSWORD}` thì **chưa đủ**: thiếu biến môi trường, Spring giữ nguyên chuỗi `${ADMIN_PASSWORD}` làm mật khẩu, và `@NotBlank` vẫn qua |
 | 12 | Log khi tạo, sửa, xoá | Có username; **không** có mật khẩu |
 
 ### 10.8 Câu hỏi tự tìm hiểu
@@ -923,3 +925,88 @@ Gợi ý: có hai cách, hãy tự chọn và giải thích vì sao chọn cách
 7. `hasRole("ADMIN")` và `hasAuthority("ROLE_ADMIN")` khác nhau thế nào?
 
 ➡️ Làm xong thì nhắn **"review step 10"** kèm câu trả lời.
+
+---
+
+## STEP 11: Đăng nhập bằng JWT
+
+**Mục tiêu:** thay HTTP Basic (gửi mật khẩu trong **mọi** request) bằng **JWT**. Client đăng nhập **một lần** để lấy token, sau đó gửi `Authorization: Bearer <token>` trong các request tiếp theo. Server không lưu token, mà chỉ **kiểm tra chữ ký** của token.
+
+Ta dùng phần JWT có sẵn của Spring Security (**OAuth2 Resource Server**), không tự viết filter. Đây là cách các project thực tế đang dùng.
+
+### 11.0 Trả nợ Step 10
+- Trả lời câu hỏi ở 10.6: vì sao bạn lấy username bằng `SecurityContextHolder` trong Service, thay vì `@AuthenticationPrincipal` trong Controller? Mỗi cách có ưu và nhược điểm gì?
+- Thống nhất cách thụt lề: `SecurityConfig` và `CustomAuthenticationEntryPoint` đang dùng tab, các file khác dùng 2 dấu cách.
+
+### 11.1 Dependency
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+</dependency>
+```
+- Không ghi `<version>`.
+- ⚠️ Boot 4 đã đổi tên starter này. Tên cũ `spring-boot-starter-oauth2-resource-server`, thường gặp trong các bài hướng dẫn, vẫn còn nhưng đã **deprecated**.
+- Starter này kéo theo thư viện Nimbus, dùng để tạo và kiểm tra JWT.
+
+### 11.2 Cấu hình JWT trong `LibraryProperties`
+Thêm phần `library.security.jwt`:
+- `secret`: khoá bí mật dùng để ký token. Dùng HS256 thì khoá phải dài **ít nhất 32 byte** (256 bit). Thêm validation cho việc này.
+- `expiration`: thời gian sống của token, kiểu **`Duration`**. YAML ghi được dạng `30m`, `1h`.
+- Dev: ghi giá trị trong `application-dev.yaml`. Prod: dùng `${JWT_SECRET:}`. Nhớ lại bẫy ở Step 10 để biết vì sao cần dấu `:`.
+
+### 11.3 Bean `JwtEncoder` và `JwtDecoder`
+Trong `SecurityConfig` (hoặc một class config riêng), tạo:
+- `JwtEncoder`: dùng `NimbusJwtEncoder` với secret ở trên. Đây là bean **tạo** token khi đăng nhập.
+- `JwtDecoder`: dùng `NimbusJwtDecoder.withSecretKey(...)`, thuật toán `HS256`. Đây là bean **kiểm tra** token trong mỗi request.
+
+Gợi ý: đổi secret thành `SecretKey` bằng `new SecretKeySpec(bytes, "HmacSHA256")`. Encoder và decoder phải dùng **cùng một** khoá.
+
+### 11.4 API đăng nhập: `POST /api/auth/login`
+- **DTO:** `LoginRequest(username, password)` có `@NotBlank`. `TokenResponse(accessToken, tokenType, expiresIn)`, với `tokenType` là `"Bearer"` và `expiresIn` tính bằng giây.
+- **Kiểm tra mật khẩu:** dùng `AuthenticationManager`. Spring Boot **không** tạo sẵn bean này, nên bạn phải tự khai báo. Gợi ý: `ProviderManager` bọc một `DaoAuthenticationProvider`, provider này dùng `UserDetailsService` và `PasswordEncoder` đã có. Ở Security 7, `DaoAuthenticationProvider` nhận `UserDetailsService` qua **constructor**.
+- **Tạo token:** viết `TokenService` (hoặc tên khác), dùng `JwtEncoder` với các claim:
+  - `iss` (tên app), `sub` (username), `iat`, `exp`;
+  - `roles`: danh sách role, ví dụ `["ADMIN"]`.
+- **Sai mật khẩu:** `authenticate()` ném `BadCredentialsException`. Hãy trả về **401** theo `ErrorResponse`. Lần này nên xử lý ở đâu: entry point hay `GlobalExceptionHandler`? Câu hỏi 5 sẽ hỏi lý do.
+- Message lỗi **giống nhau** cho cả trường hợp sai username lẫn sai password (vì sao?).
+
+### 11.5 Chuyển filter chain sang JWT
+- `/api/auth/login`: `permitAll` (với `POST`). Kiểm tra lại **thứ tự rule**: rule `POST /api/**` → `ADMIN` có đang chặn trước không?
+- Bật `oauth2ResourceServer(o -> o.jwt(...))`. Bỏ `httpBasic`.
+- **Gắn lại entry point của bạn** vào `oauth2ResourceServer(...)`. Đây đúng là bài học ở Step 10: mỗi cơ chế xác thực có entry point riêng của nó.
+- ⚠️ **Bẫy role:** mặc định, Resource Server đọc claim `scope` và tạo authority dạng `SCOPE_xxx`. Token của bạn có claim `roles`, còn rule đang dùng `hasRole("ADMIN")`, tức là cần `ROLE_ADMIN`. Nếu chưa cấu hình gì, `librarian` sẽ bị **403**. Gợi ý: `JwtAuthenticationConverter` kết hợp `JwtGrantedAuthoritiesConverter`. Tìm cách đổi tên claim và prefix.
+
+### 11.6 Swagger
+Đổi security scheme từ `basic` sang `bearer` (`bearerFormat = "JWT"`). Kết quả mong đợi: trong Swagger UI, gọi login, copy token, bấm **Authorize**, dán token, rồi POST thành công.
+
+### 11.7 Kiểm tra
+| # | Việc | Kết quả mong đợi |
+|---|---|---|
+| 1 | Login `librarian` đúng mật khẩu | 200, có `accessToken`, `tokenType: "Bearer"`, `expiresIn` |
+| 2 | Login sai mật khẩu | 401 `ErrorResponse` |
+| 3 | Login với user **không tồn tại** | 401, message **giống hệt** case 2 |
+| 4 | Login body thiếu `password` | 400 kèm `fieldErrors` |
+| 5 | `POST /api/authors` với token `librarian` | 201 |
+| 6 | `POST /api/authors` với token `reader` | 403 `ErrorResponse` |
+| 7 | `POST` không có token | 401 `ErrorResponse` |
+| 8 | `POST` với token bị **sửa một ký tự** | 401 `ErrorResponse` (không phải 500, không phải body mặc định) |
+| 9 | Token **hết hạn** (tạm đặt `expiration` ở dev là `1m`, chờ hết hạn) | 401. Nhớ đổi lại |
+| 10 | Gửi HTTP Basic như Step 10 | 401: Basic không còn được chấp nhận |
+| 11 | `GET /api/books`, không token | 200 |
+| 12 | Dán token vào jwt.io (hoặc tự giải Base64 phần giữa) | Đọc được `sub`, `roles`, `exp` **mà không cần secret** |
+| 13 | Restart app, dùng lại token cũ | Vẫn dùng được (vì sao?) |
+| 14 | Đổi `secret` ở dev, dùng lại token cũ | 401. Nhớ đổi lại |
+| 15 | Log khi tạo, sửa, xoá | Vẫn có username, dù `SecurityUtils` không đổi dòng nào (vì sao?) |
+| 16 | Prod không đặt `JWT_SECRET` | App không khởi động, báo rõ thiếu cấu hình |
+
+### 11.8 Câu hỏi tự tìm hiểu
+1. JWT gồm mấy phần, mỗi phần chứa gì? Từ case 12, có nên đặt email, mật khẩu, số điện thoại vào payload không?
+2. Server không lưu token. Vậy làm sao **thu hồi** một token trước khi hết hạn (đăng xuất, khoá tài khoản)? Vì sao access token thường chỉ sống ngắn (5–30 phút), và **refresh token** giải quyết vấn đề gì?
+3. HS256 (một khoá bí mật dùng chung) khác RS256 (cặp khoá public/private) thế nào? Khi có 5 service cùng cần kiểm tra token, nên chọn loại nào? Vì sao?
+4. Nếu `secret` bị lộ thì kẻ tấn công làm được gì? Vì sao khoá HS256 phải dài ít nhất 256 bit?
+5. Lỗi sai mật khẩu khi **login** và lỗi **token sai** trên các API khác: cái nào đi qua `GlobalExceptionHandler`, cái nào đi qua entry point? Liên hệ câu 4 của Step 10.
+6. Vì sao Resource Server mặc định tạo authority `SCOPE_xxx`? `scope` trong OAuth2 khác `role` thế nào?
+7. Vì sao login nên trả về **cùng một message** cho "sai username" và "sai password"?
+
+➡️ Làm xong thì nhắn **"review step 11"** kèm câu trả lời.

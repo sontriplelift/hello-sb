@@ -25,6 +25,7 @@ import com.example.library.exception.InvalidRequestException;
 import com.example.library.exception.ResourceNotFoundException;
 import com.example.library.mapper.BookMapper;
 import com.example.library.repository.BookRepository;
+import com.example.library.security.SecurityUtils;
 
 @Service
 public class BookService {
@@ -104,7 +105,7 @@ public class BookService {
     Book book = bookMapper.toEntity(bookRequest, author);
     Book savedBook = bookRepository.save(book);
 
-    logger.info("Created book id={} isbn={} author={}", savedBook.getId(), savedBook.getIsbn(), savedBook.getAuthor().getName());
+    logger.info("Created book id={} isbn={} author={} by {}", savedBook.getId(), savedBook.getIsbn(), savedBook.getAuthor().getName(), SecurityUtils.getCurrentUsername());
 
     return bookMapper.toResponse(savedBook);
   }
@@ -123,7 +124,7 @@ public class BookService {
 
     bookMapper.updateEntity(book, bookRequest, author);
 
-    logger.info("Updated book id={}", id);
+    logger.info("Updated book id={} by {}", id, SecurityUtils.getCurrentUsername());
 
     return bookMapper.toResponse(book);
   }
@@ -132,7 +133,7 @@ public class BookService {
   public void delete(Long id) {
     Book book = getBookById(id);
     bookRepository.delete(book);
-    logger.info("Deleted book id={}", id);
+    logger.info("Deleted book id={} by {}", id, SecurityUtils.getCurrentUsername());
   }
 
   @Transactional(readOnly = true)

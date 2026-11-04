@@ -11,7 +11,7 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 public record LibraryProperties(
   @Valid @NotNull Api api,
-  @Valid Security security
+  @Valid @NotNull Security security
 ) {
 
   public record Api(

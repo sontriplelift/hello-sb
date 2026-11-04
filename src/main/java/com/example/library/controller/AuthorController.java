@@ -31,6 +31,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
@@ -94,6 +95,7 @@ public class AuthorController {
   }
 
   @Operation(summary = "Create author")
+  @SecurityRequirement(name = "basicAuth")
   @ApiResponses({
     @ApiResponse(
       responseCode = "201",
@@ -122,6 +124,7 @@ public class AuthorController {
   }
 
   @Operation(summary = "Update author")
+  @SecurityRequirement(name = "basicAuth")
   @ApiResponses({
     @ApiResponse(
       responseCode = "200",
@@ -157,6 +160,7 @@ public class AuthorController {
   }
 
   @Operation(summary = "Delete author")
+  @SecurityRequirement(name = "basicAuth")
   @ApiResponses({
     @ApiResponse(
       responseCode = "204",

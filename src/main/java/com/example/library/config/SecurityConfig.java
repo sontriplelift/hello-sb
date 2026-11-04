@@ -65,7 +65,9 @@ public class SecurityConfig {
 						.accessDeniedHandler(accessDeniedHandler))
 
 				// Sử dụng HTTP Basic Authentication
-				.httpBasic(Customizer.withDefaults());
+				.httpBasic(basic -> basic
+					.authenticationEntryPoint(authenticationEntryPoint)
+				);
 
 		return http.build();
 	}
