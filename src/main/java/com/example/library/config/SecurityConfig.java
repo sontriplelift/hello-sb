@@ -32,6 +32,9 @@ public class SecurityConfig {
 
 				.authorizeHttpRequests(auth -> auth
 
+						// endpoint login phải được phép truy cập mà không cần token
+						.requestMatchers("/api/auth/login").permitAll()
+
 						// Swagger: cho phép mọi người truy cập
 						.requestMatchers(
 								"/swagger-ui/**",
@@ -65,8 +68,13 @@ public class SecurityConfig {
 						.accessDeniedHandler(accessDeniedHandler))
 
 				// Sử dụng HTTP Basic Authentication
-				.httpBasic(basic -> basic
-					.authenticationEntryPoint(authenticationEntryPoint)
+				// .httpBasic(basic -> basic
+				// 	.authenticationEntryPoint(authenticationEntryPoint)
+				// );
+
+				// Sử dụng JWT
+				.oauth2ResourceServer(oauth2 -> oauth2
+					.jwt(Customizer.withDefaults())
 				);
 
 		return http.build();

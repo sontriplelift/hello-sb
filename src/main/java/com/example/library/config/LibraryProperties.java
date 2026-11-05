@@ -42,13 +42,19 @@ public record LibraryProperties(
     String secret,
 
     @NotNull(message = "library.security.jwt.expiration must not be null")
-    @Positive(message = "JWT expiration must be positive")
     Duration expiration
   ) {
     @AssertTrue(message = "JWT secret must be at least 32 bytes")
     public boolean isSecretAtLeast32Bytes() {
       return secret != null
         && secret.getBytes(StandardCharsets.UTF_8).length >= 32;
+    }
+
+    @AssertTrue(message = "JWT expiration must be positive")
+    public boolean isExpirationPositive() {
+      return expiration != null
+        && !expiration.isZero()
+        && !expiration.isNegative();
     }
   }
 }
