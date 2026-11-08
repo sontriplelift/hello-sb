@@ -8,6 +8,8 @@ import com.example.library.dto.TokenResponse;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
@@ -20,9 +22,8 @@ public class TokenService {
   private final LibraryProperties properties;
 
   public TokenService(
-    JwtEncoder jwtEncoder,
-    LibraryProperties properties
-  ) {
+      JwtEncoder jwtEncoder,
+      LibraryProperties properties) {
     this.jwtEncoder = jwtEncoder;
     this.properties = properties;
   }
@@ -31,28 +32,30 @@ public class TokenService {
     Instant now = Instant.now();
 
     long expiresIn = properties.security()
-      .jwt()
-      .expiration()
-      .toSeconds();
+        .jwt()
+        .expiration()
+        .toSeconds();
 
     List<String> roles = authentication.getAuthorities()
-      .stream()
-      .map(GrantedAuthority::getAuthority)
-      .filter(authority -> authority.startsWith("ROLE_"))
-      .map(authority -> authority.substring(5))
-      .toList();
+        .stream()
+        .map(GrantedAuthority::getAuthority)
+        .filter(authority -> authority.startsWith("ROLE_"))
+        .map(authority -> authority.substring(5))
+        .toList();
 
     JwtClaimsSet claims = JwtClaimsSet.builder()
-      .issuer(properties.api().title())
-      .subject(authentication.getName())
-      .issuedAt(now)
-      .expiresAt(now.plusSeconds(expiresIn))
-      .claim("roles", roles)
-      .build();
+        .issuer(properties.api().title())
+        .subject(authentication.getName())
+        .issuedAt(now)
+        .expiresAt(now.plusSeconds(expiresIn))
+        .claim("roles", roles)
+        .build();
+
+    JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
+        .build();
 
     String token = jwtEncoder.encode(
-      JwtEncoderParameters.from(claims)
-    ).getTokenValue();
+        JwtEncoderParameters.from(header, claims)).getTokenValue();
 
     return new TokenResponse(token, "Bearer", expiresIn);
   }

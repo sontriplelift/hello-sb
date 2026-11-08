@@ -3,7 +3,6 @@ package com.example.library.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
@@ -11,6 +10,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -21,7 +21,8 @@ public class SecurityConfig {
 	public SecurityFilterChain securityFilterChain(
 			HttpSecurity http,
 			CustomAuthenticationEntryPoint authenticationEntryPoint,
-			CustomAccessDeniedHandler accessDeniedHandler)
+			CustomAccessDeniedHandler accessDeniedHandler,
+			JwtAuthenticationConverter jwtAuthenticationConverter)
 			throws Exception {
 
 		http
@@ -32,9 +33,6 @@ public class SecurityConfig {
 
 				.authorizeHttpRequests(auth -> auth
 
-						// endpoint login phải được phép truy cập mà không cần token
-						.requestMatchers("/api/auth/login").permitAll()
-
 						// Swagger: cho phép mọi người truy cập
 						.requestMatchers(
 								"/swagger-ui/**",
@@ -44,6 +42,9 @@ public class SecurityConfig {
 
 						// Error endpoint: cho phép mọi người truy cập
 						.requestMatchers("/error").permitAll()
+
+						// endpoint login phải được phép truy cập mà không cần token
+						.requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
 
 						// GET API: cho phép mọi người truy cập
 						.requestMatchers(HttpMethod.GET, "/api/**").permitAll()
@@ -74,7 +75,10 @@ public class SecurityConfig {
 
 				// Sử dụng JWT
 				.oauth2ResourceServer(oauth2 -> oauth2
-					.jwt(Customizer.withDefaults())
+					.jwt(jwt -> jwt
+						.jwtAuthenticationConverter(jwtAuthenticationConverter)
+					)
+					.authenticationEntryPoint(authenticationEntryPoint)
 				);
 
 		return http.build();
