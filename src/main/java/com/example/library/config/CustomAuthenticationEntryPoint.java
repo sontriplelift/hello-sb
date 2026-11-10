@@ -42,9 +42,7 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 		response.setCharacterEncoding("UTF-8");
 
-		response.setHeader(
-				"WWW-Authenticate",
-				"Basic realm=\"Library API\"");
+		response.setHeader("WWW-Authenticate", "Bearer");
 
 		jsonMapper.writeValue(response.getOutputStream(), errorResponse);
 	}

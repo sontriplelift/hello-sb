@@ -27,3 +27,6 @@ library:
   security:
     admin-password: ${ADMIN_PASSWORD:}
     reader-password: ${READER_PASSWORD:}
+    jwt:
+      secret: ${JWT_SECRET:}
+      expiration: 1h

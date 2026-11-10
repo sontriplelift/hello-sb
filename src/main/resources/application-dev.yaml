@@ -22,3 +22,6 @@ library:
   security:
     admin-password: "admin123"
     reader-password: "reader123"
+    jwt:
+      secret: "dev-library-jwt-secret-key-32-bytes-minimum"
+      expiration: 30m

@@ -96,7 +96,7 @@ public class BookController {
   }
 
   @Operation(summary = "Create book")
-  @SecurityRequirement(name = "basicAuth")
+  @SecurityRequirement(name = "bearerAuth")
   @ApiResponses({
     @ApiResponse(
       responseCode = "201",
@@ -125,7 +125,7 @@ public class BookController {
   }
 
   @Operation(summary = "Update book")
-  @SecurityRequirement(name = "basicAuth")
+  @SecurityRequirement(name = "bearerAuth")
   @ApiResponses({
     @ApiResponse(
       responseCode = "200",
@@ -160,7 +160,7 @@ public class BookController {
   }
 
   @Operation(summary = "Delete book")
-  @SecurityRequirement(name = "basicAuth")
+  @SecurityRequirement(name = "bearerAuth")
   @ApiResponses({
     @ApiResponse(
       responseCode = "204",

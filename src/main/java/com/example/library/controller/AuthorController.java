@@ -95,7 +95,7 @@ public class AuthorController {
   }
 
   @Operation(summary = "Create author")
-  @SecurityRequirement(name = "basicAuth")
+  @SecurityRequirement(name = "bearerAuth")
   @ApiResponses({
     @ApiResponse(
       responseCode = "201",
@@ -124,7 +124,7 @@ public class AuthorController {
   }
 
   @Operation(summary = "Update author")
-  @SecurityRequirement(name = "basicAuth")
+  @SecurityRequirement(name = "bearerAuth")
   @ApiResponses({
     @ApiResponse(
       responseCode = "200",
@@ -160,7 +160,7 @@ public class AuthorController {
   }
 
   @Operation(summary = "Delete author")
-  @SecurityRequirement(name = "basicAuth")
+  @SecurityRequirement(name = "bearerAuth")
   @ApiResponses({
     @ApiResponse(
       responseCode = "204",
