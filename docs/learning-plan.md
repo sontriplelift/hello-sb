@@ -35,7 +35,8 @@ Khi xong, API phải làm được:
 | 9 | Flyway | Migration có version, checksum, `ddl-auto: validate` |
 | 10 | Spring Security | Filter chain, HTTP Basic, role, 401 và 403, `PasswordEncoder` |
 | 11 | JWT | Đăng nhập lấy token, `JwtEncoder`/`JwtDecoder`, OAuth2 Resource Server, claim và authority |
-| 12+ | *(Tuỳ chọn)* | Refresh token, chuyển sang MySQL/PostgreSQL, Docker (khi có quyền và mạng) |
+| 12 | Refresh token | Token có trạng thái, lưu hash, rotation, phát hiện dùng lại, logout |
+| 13+ | *(Tuỳ chọn)* | Chuyển sang MySQL/PostgreSQL, Docker (khi có quyền và mạng) |
 
 **Quy trình:** mentor giao step → bạn tự code → nhắn **"review step X"** → mentor chỉ ra ✅ điểm tốt, ⚠️ điểm cần sửa, 💡 gợi ý → đạt thì sang step tiếp theo.
 
@@ -61,7 +62,8 @@ File DB (`data/`) **không** được đưa lên Git. Trên máy mới: chạy a
 | 8 | ✅ Đạt (review lần 3) | 3 profile, `LibraryProperties` + `@Validated`, log SQL kèm tham số, prod ghi log ra file và tắt Swagger. Mọi endpoint đều khai báo mã thành công/lỗi với schema `ErrorResponse`. Làm hết các điểm 💡 (bỏ email khỏi log, `@NotNull` cho `api`…). Không còn nợ |
 | 9 | ✅ Đạt (review lần 2) | Flyway chạy đủ V1–V3, đặt lại tên constraint, V3 nới cột đúng cách, dev và prod đều validate qua, `seed-data.sql` chỉ còn `CREATE USER`. Làm cả 💡 `devtools.restart.additional-exclude`. Còn nợ: thư mục `data-backup-step8` chưa được xử lý (chưa ignore, chưa xoá) |
 | 10 | ✅ Đạt (review lần 2) | Phân quyền đúng, `/error` mở nên 404/400/409 vẫn đúng, mọi 401/403 (kể cả sai mật khẩu) đều theo `ErrorResponse`, Swagger Authorize, sửa được bẫy `${ADMIN_PASSWORD:}`. Chủ động: push `data-backup-step8` lên GitHub. Còn nợ: giải thích lựa chọn ở 10.6, thống nhất thụt lề |
-| 11 | ⏳ Đang làm | JWT: đăng nhập lấy token, OAuth2 Resource Server, ánh xạ role từ claim |
+| 11 | ✅ Đạt (review lần 1) | Mọi case mentor test được đều đúng: login 200/401/400, sai username và sai password cùng message, token librarian 201, reader 403, token sửa 1 ký tự hay token rác đều 401 `ErrorResponse`, Basic bị từ chối. Ánh xạ `roles` → `ROLE_` đúng, secret có `@AssertTrue` ≥ 32 byte, prod dùng `${JWT_SECRET:}`. Còn nợ: lỗi login đang gọi tay entry point (nên chuyển về `GlobalExceptionHandler`), `@NotNull` cho `jwt`, `@ApiResponses` cho login, thụt lề và câu 10.6 (nợ từ Step 10) |
+| 12 | ⏳ Đang làm | Refresh token: lưu hash trong DB (Flyway V4), rotation, phát hiện dùng lại, logout |
 
 ---
 
@@ -1010,3 +1012,86 @@ Gợi ý: đổi secret thành `SecretKey` bằng `new SecretKeySpec(bytes, "Hma
 7. Vì sao login nên trả về **cùng một message** cho "sai username" và "sai password"?
 
 ➡️ Làm xong thì nhắn **"review step 11"** kèm câu trả lời.
+
+---
+
+## STEP 12: Refresh token (rotation, logout)
+
+**Mục tiêu:** access token chỉ sống ngắn (vài phút). Khi hết hạn, client dùng **refresh token** để xin access token mới, không phải nhập lại mật khẩu. Khác với access token (stateless), refresh token **có trạng thái**: server lưu nó trong DB nên có thể **thu hồi** được. Bạn đã tự mô tả đúng quy trình này ở câu 2 của Step 11. Giờ hãy hiện thực hoá nó.
+
+### 12.0 Trả nợ Step 11 (và Step 10)
+- **Lỗi login về đúng chỗ:** `AuthController` đang `try/catch` rồi gọi tay `authenticationEntryPoint.commence(...)` và `return null`. Hãy bỏ `try/catch`, bỏ `throws Exception`, bỏ inject entry point. Thay vào đó thêm một `@ExceptionHandler(AuthenticationException.class)` → 401 trong `GlobalExceptionHandler`. Xem lại giải thích ở câu 5 trong review Step 11.
+- `Security.jwt` mới có `@Valid`, chưa có `@NotNull`. Nếu ai đó xoá cả khối `jwt:` trong YAML thì app sẽ chết bằng `NullPointerException` trong `JwtConfig`, thay vì báo lỗi cấu hình rõ ràng.
+- Thêm `@Operation` / `@ApiResponses` (200, 400, 401) cho `POST /api/auth/login`, giống chuẩn bạn đã làm ở Step 8.
+- (Nợ từ Step 10) Thống nhất thụt lề. Hiện `SecurityConfig`, `JwtConfig`, `LoginRequest`, `CustomAuthenticationEntryPoint` dùng tab, còn `OpenApiConfig` lẫn cả tab lẫn dấu cách.
+- (Nợ từ Step 10) Trả lời câu hỏi ở 10.6: `SecurityContextHolder` trong Service so với `@AuthenticationPrincipal` trong Controller.
+- 💡 Tuỳ chọn: cho `JwtDecoder` kiểm tra luôn `iss`, bằng `JwtValidators.createDefaultWithIssuer(...)`.
+
+### 12.1 Cấu hình
+Thêm vào `library.security.jwt` (hoặc tách thành nhóm riêng, tuỳ bạn):
+- `refresh-expiration` (kiểu `Duration`). Dev: `7d`. Prod: tuỳ bạn chọn.
+- Giảm `expiration` của access token ở dev xuống khoảng `5m`, để thấy rõ tác dụng của refresh token.
+
+### 12.2 Bảng `refresh_tokens` (Flyway **V4**)
+⚠️ Nhớ bẫy ở Step 9: **tắt app** rồi mới tạo file `V4__...sql`, hoặc viết xong nội dung rồi mới lưu.
+
+Gợi ý các cột (bạn được tự quyết định thêm hoặc bớt, nhưng phải giải thích):
+- `id` (khoá chính tự tăng)
+- `token_hash`: **unique**. Lưu **hash**, không lưu token gốc.
+- `username`: user của mình đang ở bộ nhớ (in-memory), nên chưa có bảng `users` để làm khoá ngoại.
+- `expires_at`, `created_at`
+- `revoked_at`: `NULL` nghĩa là chưa bị thu hồi.
+- (tuỳ chọn) `replaced_by_id`: token mới sinh ra khi rotation.
+
+Đặt tên constraint theo cách bạn đã làm ở V1. Sau đó tạo Entity `RefreshToken` và Repository. `ddl-auto: validate` phải chạy qua được.
+
+### 12.3 Tạo refresh token
+- **Không dùng JWT** cho refresh token. Dùng chuỗi **ngẫu nhiên**: 32 byte từ `SecureRandom`, mã hoá `Base64.getUrlEncoder().withoutPadding()`.
+- Tính hash **SHA-256** (dùng `MessageDigest`) rồi lưu vào DB. Token gốc chỉ trả về client **một lần duy nhất**.
+- Đặt logic này trong một service riêng, ví dụ `RefreshTokenService`.
+
+### 12.4 Các API
+| API | Body | Kết quả |
+|---|---|---|
+| `POST /api/auth/login` | `LoginRequest` | 200. `TokenResponse` có thêm `refreshToken` và `refreshExpiresIn` |
+| `POST /api/auth/refresh` | `{ "refreshToken": "..." }` | 200, trả về access token **mới** và refresh token **mới** |
+| `POST /api/auth/logout` | `{ "refreshToken": "..." }` | 204, refresh token bị thu hồi |
+
+Luồng xử lý `refresh`:
+1. Hash token nhận được, rồi tìm trong DB. Không thấy, đã hết hạn hoặc đã bị thu hồi → **401**, message chung.
+2. **Rotation:** thu hồi token cũ (ghi `revoked_at`), rồi tạo token mới.
+3. **Phát hiện dùng lại (reuse detection):** nếu ai đó gửi một token **đã bị thu hồi do rotation**, hãy coi như token đã bị đánh cắp. Khi đó thu hồi **toàn bộ** refresh token còn hiệu lực của user đó, rồi trả về 401.
+4. Lấy lại thông tin user bằng `UserDetailsService` (user còn tồn tại không, `isEnabled()` không, role hiện tại là gì). Sau đó mới tạo access token. **Không** copy role từ token cũ.
+5. Toàn bộ các bước trên nằm trong **một transaction**.
+
+Gợi ý: `TokenService.generateToken(...)` hiện nhận `Authentication`. Hãy nghĩ cách dùng lại nó khi chỉ có `UserDetails`.
+
+Hãy tự quyết định `/refresh` và `/logout` có cần access token hay không (`permitAll` hay `authenticated`), và giải thích lựa chọn. Lỗi 401 phải đi qua `GlobalExceptionHandler`, vận dụng phần nợ ở 12.0.
+
+### 12.5 Kiểm tra
+| # | Việc | Kết quả mong đợi |
+|---|---|---|
+| 1 | Login `librarian` | 200, có `accessToken` và `refreshToken` |
+| 2 | Xem bảng `refresh_tokens` | Có một dòng, `token_hash` **khác** token đã trả về |
+| 3 | `refresh` với token ở case 1 | 200, cả access token lẫn refresh token đều mới |
+| 4 | `refresh` **lại** với token cũ của case 1 | 401. Token mới ở case 3 cũng bị thu hồi (reuse detection) |
+| 5 | `refresh` với chuỗi rác | 401 `ErrorResponse`, message giống case 4 |
+| 6 | `refresh` thiếu `refreshToken` | 400 kèm `fieldErrors` |
+| 7 | Login lần mới, rồi `logout` | 204. Sau đó `refresh` bằng token đó thì 401 |
+| 8 | Sau khi logout, dùng access token cũ để `POST /api/authors` | **Vẫn 201** cho tới khi hết hạn (vì sao?) |
+| 9 | Login 2 lần (giả lập 2 thiết bị), logout thiết bị 1 | Refresh token của thiết bị 2 vẫn dùng được |
+| 10 | Access token lấy từ `refresh` | Có `roles` đúng, `POST` được |
+| 11 | Restart app, dùng refresh token còn hạn | Vẫn dùng được (vì sao, so với case 13 của Step 11?) |
+| 12 | Tạm đặt `refresh-expiration: 1m`, chờ hết hạn rồi `refresh` | 401. Nhớ đổi lại |
+| 13 | Log | Có dòng log khi login, refresh, logout và khi phát hiện dùng lại. **Không** in token ra log |
+
+### 12.6 Câu hỏi tự tìm hiểu
+1. Vì sao lưu **hash** của refresh token mà không lưu token gốc? Vì sao ở đây SHA-256 là đủ, còn mật khẩu thì phải dùng BCrypt?
+2. Vì sao refresh token nên là chuỗi ngẫu nhiên (opaque) chứ không phải JWT?
+3. Reuse detection phát hiện được kịch bản tấn công nào? Nếu FE mở 2 tab, và cả 2 tab cùng gọi `refresh` với một token gần như cùng lúc, thì chuyện gì xảy ra với user thật? Có cách nào giảm thiểu?
+4. Hai request `refresh` với cùng một token đến **đồng thời**: cả hai cùng đọc thấy `revoked_at IS NULL` trước khi bên kia kịp ghi. Làm sao chặn trường hợp này? Gợi ý: `UPDATE ... WHERE revoked_at IS NULL` rồi xem số dòng bị ảnh hưởng, hoặc `@Version`, hoặc khoá dòng.
+5. Sau khi logout, access token vẫn dùng được (case 8). Chấp nhận được không? Muốn chặn ngay thì phải làm gì, và đổi lại mất gì?
+6. FE nên giữ refresh token ở đâu? Nếu đặt nó trong cookie `HttpOnly` thì phía server phải thay đổi gì (cookie `Path`, `SameSite`, CSRF)?
+7. Bảng `refresh_tokens` sẽ lớn dần lên theo thời gian. Bạn sẽ dọn các dòng hết hạn bằng cách nào?
+
+➡️ Làm xong thì nhắn **"review step 12"** kèm câu trả lời.

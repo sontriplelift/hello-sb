@@ -1,16 +1,15 @@
 package com.example.library.config;
 
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
-
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 @ConfigurationProperties(prefix = "library")
 @Validated
@@ -33,7 +32,7 @@ public record LibraryProperties(
       @NotBlank(message = "library.security.reader-password must not be blank") 
       String readerPassword,
 
-      @Valid Jwt jwt
+      @Valid @NotNull Jwt jwt
   ) {
   }
 
