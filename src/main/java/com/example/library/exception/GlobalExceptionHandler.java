@@ -10,6 +10,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -186,6 +187,19 @@ public class GlobalExceptionHandler {
     return buildError(
         HttpStatus.NOT_FOUND,
         "Resource not found",
+        request,
+        null);
+  }
+
+  // Đăng nhập thất bại: 401
+  @ExceptionHandler(AuthenticationException.class)
+  public ResponseEntity<ErrorResponse> handleAuthentication(
+      AuthenticationException ex,
+      HttpServletRequest request) {
+
+    return buildError(
+        HttpStatus.UNAUTHORIZED,
+        "Invalid username or password",
         request,
         null);
   }

@@ -70,16 +70,14 @@ public class SecurityConfig {
 
 				// Sử dụng HTTP Basic Authentication
 				// .httpBasic(basic -> basic
-				// 	.authenticationEntryPoint(authenticationEntryPoint)
+				// .authenticationEntryPoint(authenticationEntryPoint)
 				// );
 
 				// Sử dụng JWT
 				.oauth2ResourceServer(oauth2 -> oauth2
-					.jwt(jwt -> jwt
-						.jwtAuthenticationConverter(jwtAuthenticationConverter)
-					)
-					.authenticationEntryPoint(authenticationEntryPoint)
-				);
+						.jwt(jwt -> jwt
+								.jwtAuthenticationConverter(jwtAuthenticationConverter))
+						.authenticationEntryPoint(authenticationEntryPoint));
 
 		return http.build();
 	}

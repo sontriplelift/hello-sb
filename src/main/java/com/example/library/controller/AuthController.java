@@ -4,8 +4,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,10 +11,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.library.dto.LoginRequest;
 import com.example.library.dto.TokenResponse;
+import com.example.library.exception.ErrorResponse;
 import com.example.library.service.TokenService;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 
 @RestController
@@ -25,36 +27,44 @@ public class AuthController {
 
   private final AuthenticationManager authenticationManager;
   private final TokenService tokenService;
-  private final AuthenticationEntryPoint authenticationEntryPoint;
 
   public AuthController(
       AuthenticationManager authenticationManager,
-      TokenService tokenService,
-      AuthenticationEntryPoint authenticationEntryPoint) {
+      TokenService tokenService) {
     this.authenticationManager = authenticationManager;
     this.tokenService = tokenService;
-    this.authenticationEntryPoint = authenticationEntryPoint;
   }
 
+  @Operation(summary = "Login to the application")
+  @ApiResponses({
+    @ApiResponse(
+      responseCode = "200",
+      description = "Login successful"
+    ),
+    @ApiResponse(
+      responseCode = "400",
+      description = "Invalid request",
+      content = @Content(
+        schema = @Schema(implementation = ErrorResponse.class)
+      )
+    ),
+    @ApiResponse(
+      responseCode = "401",
+      description = "Invalid username or password",
+      content = @Content(
+        schema = @Schema(implementation = ErrorResponse.class)
+      )
+    )
+  })
   @PostMapping("/login")
   public ResponseEntity<TokenResponse> login(
-      @Valid @RequestBody LoginRequest request,
-      HttpServletRequest httpRequest,
-      HttpServletResponse httpResponse) throws Exception {
-    try {
-      Authentication authentication = authenticationManager.authenticate(
-          new UsernamePasswordAuthenticationToken(
-              request.username(),
-              request.password()));
+      @Valid @RequestBody LoginRequest request) {
 
-      return ResponseEntity.ok(tokenService.generateToken(authentication));
-    } catch (AuthenticationException exception) {
-      authenticationEntryPoint.commence(
-          httpRequest,
-          httpResponse,
-          exception);
+    Authentication authentication = authenticationManager.authenticate(
+        new UsernamePasswordAuthenticationToken(
+            request.username(),
+            request.password()));
 
-      return null;
-    }
+    return ResponseEntity.ok(tokenService.generateToken(authentication));
   }
 }
