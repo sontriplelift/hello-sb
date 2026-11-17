@@ -10,8 +10,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.library.dto.LoginRequest;
+import com.example.library.dto.RefreshTokenResult;
 import com.example.library.dto.TokenResponse;
+import com.example.library.dto.TokenWithRefreshResponse;
 import com.example.library.exception.ErrorResponse;
+import com.example.library.service.RefreshTokenService;
 import com.example.library.service.TokenService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,12 +30,15 @@ public class AuthController {
 
   private final AuthenticationManager authenticationManager;
   private final TokenService tokenService;
+  private final RefreshTokenService refreshTokenService;
 
   public AuthController(
       AuthenticationManager authenticationManager,
-      TokenService tokenService) {
+      TokenService tokenService,
+      RefreshTokenService refreshTokenService) {
     this.authenticationManager = authenticationManager;
     this.tokenService = tokenService;
+    this.refreshTokenService = refreshTokenService;
   }
 
   @Operation(summary = "Login to the application")
@@ -57,7 +63,7 @@ public class AuthController {
     )
   })
   @PostMapping("/login")
-  public ResponseEntity<TokenResponse> login(
+  public ResponseEntity<TokenWithRefreshResponse> login(
       @Valid @RequestBody LoginRequest request) {
 
     Authentication authentication = authenticationManager.authenticate(
@@ -65,6 +71,21 @@ public class AuthController {
             request.username(),
             request.password()));
 
-    return ResponseEntity.ok(tokenService.generateToken(authentication));
+    // Tạo access token (JWT)
+    TokenResponse accessTokenResponse = tokenService.generateToken(authentication);
+
+    // Tạo Refresh Token và lưu hash vào DB
+    RefreshTokenResult refreshTokenResult =
+        refreshTokenService.create(authentication.getName());
+
+    TokenWithRefreshResponse response = new TokenWithRefreshResponse(
+        accessTokenResponse.accessToken(),
+        accessTokenResponse.tokenType(),
+        accessTokenResponse.expiresIn(),
+        refreshTokenResult.rawToken(),
+        refreshTokenResult.refreshExpiresIn()
+    );
+
+    return ResponseEntity.ok(response);
   }
 }

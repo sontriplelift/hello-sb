@@ -45,6 +45,8 @@ public class SecurityConfig {
 
 						// endpoint login phải được phép truy cập mà không cần token
 						.requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+						.requestMatchers("/api/auth/refresh").permitAll()
+						.requestMatchers("/api/auth/logout").permitAll()
 
 						// GET API: cho phép mọi người truy cập
 						.requestMatchers(HttpMethod.GET, "/api/**").permitAll()

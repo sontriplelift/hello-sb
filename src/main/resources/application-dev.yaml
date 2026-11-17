@@ -25,3 +25,4 @@ library:
     jwt:
       secret: "dev-library-jwt-secret-key-32-bytes-minimum"
       expiration: 30m
+      refresh-expiration: 7d

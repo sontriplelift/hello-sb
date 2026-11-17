@@ -30,3 +30,4 @@ library:
     jwt:
       secret: ${JWT_SECRET:}
       expiration: 1h
+      refresh-expiration: 7d
