@@ -204,6 +204,19 @@ public class GlobalExceptionHandler {
         null);
   }
 
+  // Refresh token invalid: 401
+  @ExceptionHandler(InvalidRefreshTokenException.class)
+  public ResponseEntity<ErrorResponse> handleInvalidRefreshToken(
+      InvalidRefreshTokenException ex,
+      HttpServletRequest request) {
+
+    return buildError(
+        HttpStatus.UNAUTHORIZED,
+        ex.getMessage(),
+        request,
+        null);
+  }
+
   // Lỗi không xác định: 500
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ErrorResponse> handleUnexpectedException(

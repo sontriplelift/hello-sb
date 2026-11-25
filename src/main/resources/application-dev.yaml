@@ -24,5 +24,5 @@ library:
     reader-password: "reader123"
     jwt:
       secret: "dev-library-jwt-secret-key-32-bytes-minimum"
-      expiration: 30m
+      expiration: 5m
       refresh-expiration: 7d

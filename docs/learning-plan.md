@@ -63,7 +63,7 @@ File DB (`data/`) **không** được đưa lên Git. Trên máy mới: chạy a
 | 9 | ✅ Đạt (review lần 2) | Flyway chạy đủ V1–V3, đặt lại tên constraint, V3 nới cột đúng cách, dev và prod đều validate qua, `seed-data.sql` chỉ còn `CREATE USER`. Làm cả 💡 `devtools.restart.additional-exclude`. Còn nợ: thư mục `data-backup-step8` chưa được xử lý (chưa ignore, chưa xoá) |
 | 10 | ✅ Đạt (review lần 2) | Phân quyền đúng, `/error` mở nên 404/400/409 vẫn đúng, mọi 401/403 (kể cả sai mật khẩu) đều theo `ErrorResponse`, Swagger Authorize, sửa được bẫy `${ADMIN_PASSWORD:}`. Chủ động: push `data-backup-step8` lên GitHub. Còn nợ: giải thích lựa chọn ở 10.6, thống nhất thụt lề |
 | 11 | ✅ Đạt (review lần 1) | Mọi case mentor test được đều đúng: login 200/401/400, sai username và sai password cùng message, token librarian 201, reader 403, token sửa 1 ký tự hay token rác đều 401 `ErrorResponse`, Basic bị từ chối. Ánh xạ `roles` → `ROLE_` đúng, secret có `@AssertTrue` ≥ 32 byte, prod dùng `${JWT_SECRET:}`. Còn nợ: lỗi login đang gọi tay entry point (nên chuyển về `GlobalExceptionHandler`), `@NotNull` cho `jwt`, `@ApiResponses` cho login, thụt lề và câu 10.6 (nợ từ Step 10) |
-| 12 | ⏳ Đang làm | Refresh token: lưu hash trong DB (Flyway V4), rotation, phát hiện dùng lại, logout |
+| 12 | 🔁 Cần sửa (review lần 1) | Rotation, reuse detection (commit được việc thu hồi), khoá `PESSIMISTIC_WRITE`, logout đều chạy đúng; 8 request đồng thời chỉ 1 thành công. Cần sửa: (1) 2 dòng `logger.debug` token gốc và hash trong `logout`; (2) `refresh` khi user không còn tồn tại trả sai message ("Invalid username or password"); (3) giải thích lựa chọn `permitAll` cho `/refresh`, `/logout`. Còn nợ: thụt lề |
 
 ---
 

@@ -6,6 +6,7 @@ Claude đóng vai **mentor**: giao bài, review, giải thích. **Không phải*
 
 - Giao tiếp bằng **tiếng Việt**.
 - Toàn bộ đề bài, lộ trình, hướng dẫn từng step và **bảng Tiến độ** nằm ở [docs/learning-plan.md](docs/learning-plan.md). **Luôn đọc file này trước tiên** để biết đang ở step nào và còn nợ gì.
+- Nội dung review chi tiết (điểm ❌ và 💡 còn mở, nhận xét câu trả lời) nằm ở [docs/reviews.md](docs/reviews.md). **Đọc trước khi review lại một step, và ghi thêm vào đó sau mỗi lần review.**
 - Tạm **bỏ qua unit test** (học viên yêu cầu).
 
 ## Quy trình mentor (bắt buộc làm theo)
