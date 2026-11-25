@@ -2,6 +2,8 @@ package com.example.library.controller;
 
 import java.net.URI;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -36,6 +38,8 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/api/books")
 public class BookController {
+
+  private static final Logger logger = LoggerFactory.getLogger(BookController.class);
 
   private final BookService bookService;
 

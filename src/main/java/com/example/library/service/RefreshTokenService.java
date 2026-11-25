@@ -9,6 +9,8 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +21,8 @@ import com.example.library.repository.RefreshTokenRepository;
 
 @Service
 public class RefreshTokenService {
+
+  private static final Logger logger = LoggerFactory.getLogger(RefreshTokenService.class);
 
   private final RefreshTokenRepository refreshTokenRepository;
   private final LibraryProperties libraryProperties;

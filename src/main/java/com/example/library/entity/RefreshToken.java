@@ -31,14 +31,12 @@ public class RefreshToken {
   private String username;
 
   @CreationTimestamp
-  @Column(nullable = false, name = "expires_at")
-  private Instant expiresAt;
-
-  @CreationTimestamp
   @Column(nullable = false, name = "created_at", updatable = false)
   private Instant createdAt;
 
-  @CreationTimestamp
+  @Column(nullable = false, name = "expires_at")
+  private Instant expiresAt;
+
   @Column(name = "revoked_at")
   private Instant revokedAt;
 
