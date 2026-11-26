@@ -36,7 +36,8 @@ Khi xong, API phải làm được:
 | 10 | Spring Security | Filter chain, HTTP Basic, role, 401 và 403, `PasswordEncoder` |
 | 11 | JWT | Đăng nhập lấy token, `JwtEncoder`/`JwtDecoder`, OAuth2 Resource Server, claim và authority |
 | 12 | Refresh token | Token có trạng thái, lưu hash, rotation, phát hiện dùng lại, logout |
-| 13+ | *(Tuỳ chọn)* | Chuyển sang MySQL/PostgreSQL, Docker (khi có quyền và mạng) |
+| 13 | User trong DB | `UserDetailsService` tự viết, đăng ký, đổi mật khẩu, khoá tài khoản, `ApplicationRunner`, `@Scheduled` |
+| 14+ | *(Tuỳ chọn)* | Chuyển sang MySQL/PostgreSQL, Docker (khi có quyền và mạng) |
 
 **Quy trình:** mentor giao step → bạn tự code → nhắn **"review step X"** → mentor chỉ ra ✅ điểm tốt, ⚠️ điểm cần sửa, 💡 gợi ý → đạt thì sang step tiếp theo.
 
@@ -63,7 +64,8 @@ File DB (`data/`) **không** được đưa lên Git. Trên máy mới: chạy a
 | 9 | ✅ Đạt (review lần 2) | Flyway chạy đủ V1–V3, đặt lại tên constraint, V3 nới cột đúng cách, dev và prod đều validate qua, `seed-data.sql` chỉ còn `CREATE USER`. Làm cả 💡 `devtools.restart.additional-exclude`. Còn nợ: thư mục `data-backup-step8` chưa được xử lý (chưa ignore, chưa xoá) |
 | 10 | ✅ Đạt (review lần 2) | Phân quyền đúng, `/error` mở nên 404/400/409 vẫn đúng, mọi 401/403 (kể cả sai mật khẩu) đều theo `ErrorResponse`, Swagger Authorize, sửa được bẫy `${ADMIN_PASSWORD:}`. Chủ động: push `data-backup-step8` lên GitHub. Còn nợ: giải thích lựa chọn ở 10.6, thống nhất thụt lề |
 | 11 | ✅ Đạt (review lần 1) | Mọi case mentor test được đều đúng: login 200/401/400, sai username và sai password cùng message, token librarian 201, reader 403, token sửa 1 ký tự hay token rác đều 401 `ErrorResponse`, Basic bị từ chối. Ánh xạ `roles` → `ROLE_` đúng, secret có `@AssertTrue` ≥ 32 byte, prod dùng `${JWT_SECRET:}`. Còn nợ: lỗi login đang gọi tay entry point (nên chuyển về `GlobalExceptionHandler`), `@NotNull` cho `jwt`, `@ApiResponses` cho login, thụt lề và câu 10.6 (nợ từ Step 10) |
-| 12 | 🔁 Cần sửa (review lần 1) | Rotation, reuse detection (commit được việc thu hồi), khoá `PESSIMISTIC_WRITE`, logout đều chạy đúng; 8 request đồng thời chỉ 1 thành công. Cần sửa: (1) 2 dòng `logger.debug` token gốc và hash trong `logout`; (2) `refresh` khi user không còn tồn tại trả sai message ("Invalid username or password"); (3) giải thích lựa chọn `permitAll` cho `/refresh`, `/logout`. Còn nợ: thụt lề |
+| 12 | ✅ Đạt (review lần 2) | Rotation, reuse detection (commit được việc thu hồi trước khi báo lỗi), logout, thêm `jti`, `.editorconfig`, thống nhất thụt lề. Theo yêu cầu, mentor sửa giúp hai việc: bỏ truy vấn thừa khi rotation, và đóng khe hở đồng thời (khoá mọi token của user, thu hồi bằng một câu `UPDATE`; 20 lần thử đồng thời đều không còn token sót). Còn nợ: 3 method repository không dùng, `OpenApiConfig` còn tab, handler `AuthenticationException` còn quá rộng |
+| 13 | ⏳ Đang làm | User trong DB: Flyway V5, `UserDetailsService` tự viết, đăng ký, đổi mật khẩu, khoá tài khoản, job dọn refresh token |
 
 ---
 
@@ -1095,3 +1097,101 @@ Hãy tự quyết định `/refresh` và `/logout` có cần access token hay kh
 7. Bảng `refresh_tokens` sẽ lớn dần lên theo thời gian. Bạn sẽ dọn các dòng hết hạn bằng cách nào?
 
 ➡️ Làm xong thì nhắn **"review step 12"** kèm câu trả lời.
+
+---
+
+## STEP 13: Quản lý user trong database
+
+**Mục tiêu:** user hiện nằm trong bộ nhớ (`InMemoryUserDetailsManager`), nên không đăng ký, không đổi mật khẩu, không khoá tài khoản được. Step này chuyển user vào bảng `users` và tự viết `UserDetailsService`. Đồng thời tận dụng refresh token của Step 12:
+- khoá tài khoản thì không refresh được nữa;
+- đổi mật khẩu thì mọi phiên đăng nhập cũ bị thu hồi.
+
+Cuối step, bạn viết job dọn refresh token hết hạn (câu 7 của Step 12).
+
+### 13.0 Trả nợ Step 12
+- Xoá 3 method không còn dùng trong `RefreshTokenRepository`: `findAllByUsername`, `existsByTokenHash`, `findAllByUsernameAndRevokedAtIsNull`. Method cuối không còn dùng sau khi mentor sửa `revokeAllActiveTokens`.
+- `OpenApiConfig` còn 3 dòng thụt bằng tab (trong `@SecurityScheme`).
+- Handler `AuthenticationException` đang biến **mọi** lỗi xác thực thành 401. Lỗi hệ thống như `AuthenticationServiceException` (ví dụ DB sập khi tải user) phải là **500** kèm `logger.error`. Bước này quan trọng hơn ở Step 13, vì giờ việc tải user thật sự đi qua DB.
+- Đọc kỹ phần mentor sửa trong `RefreshTokenService.refresh()` và `RefreshTokenRepository`, rồi trả lời câu hỏi 1 ở 13.8.
+
+### 13.1 Flyway V5: bảng `users`
+⚠️ Tắt app rồi mới tạo file `V5__...sql` (bẫy ở Step 9).
+
+Gợi ý các cột:
+- `id` (khoá chính tự tăng)
+- `username`: unique, tối đa 50 ký tự.
+- `password_hash`: kết quả của `PasswordEncoder`, dạng `{bcrypt}$2a$10$...`. Tự tính xem cần dài bao nhiêu.
+- `role`: chuỗi `ADMIN` hoặc `USER`. Mỗi user chỉ có **một** role cho đơn giản. Thực tế người ta thường dùng bảng riêng `user_roles`.
+- `enabled`: kiểu boolean, mặc định `TRUE`.
+- `created_at`
+
+💡 Tuỳ chọn: thêm khoá ngoại `refresh_tokens.username` → `users.username`. Thử rồi giải thích chuyện gì xảy ra với dữ liệu đang có trong `refresh_tokens` khi V5 chạy.
+
+### 13.2 Entity `User`, enum `Role`, `UserRepository`
+- `Role` là enum. Lưu bằng `@Enumerated(EnumType.STRING)`.
+- Đặt tên class `User` sẽ trùng với `org.springframework.security.core.userdetails.User`. Hãy tự chọn: đổi tên entity (ví dụ `AppUser`), hoặc dùng tên đầy đủ khi import.
+
+### 13.3 `UserDetailsService` đọc từ DB
+- Viết một class `@Service` implement `UserDetailsService`. Tìm user theo username; không thấy thì ném `UsernameNotFoundException`.
+- Chuyển entity sang `UserDetails`: dùng `User.builder()` với `.disabled(!enabled)`.
+- **Bỏ** bean `InMemoryUserDetailsManager` trong `SecurityConfig` (giữ dạng comment nếu bạn muốn).
+- `AuthenticationConfig` và `RefreshTokenService` **không cần sửa dòng nào**. Câu hỏi 3 sẽ hỏi vì sao.
+
+### 13.4 Tạo tài khoản ban đầu
+Viết một `ApplicationRunner` (hoặc `CommandLineRunner`):
+- Khi app khởi động, nếu chưa có `librarian` thì tạo với role `ADMIN`, mật khẩu lấy từ `library.security.admin-password`. Làm tương tự cho `reader` với role `USER`.
+- Phải **idempotent**: chạy lại lần 2 không tạo trùng, không ghi đè mật khẩu đã đổi.
+- Mật khẩu phải được `encode` trước khi lưu.
+
+### 13.5 Các API
+| API | Ai được gọi | Body | Kết quả |
+|---|---|---|---|
+| `POST /api/auth/register` | Ai cũng được | `{username, password}` | 201, role luôn là `USER`. Trùng username → 409 |
+| `PUT /api/users/me/password` | User đã đăng nhập | `{currentPassword, newPassword}` | 204, thu hồi **mọi** refresh token của user |
+| `PATCH /api/users/{username}/status` | `ADMIN` | `{enabled: true/false}` | 204. Khi khoá thì thu hồi mọi refresh token của user đó |
+| `GET /api/users` | `ADMIN` | | Danh sách user, phân trang, **không** có mật khẩu |
+
+Yêu cầu:
+- Validation: username chỉ gồm chữ thường, số, dấu `_`, dài 3–50 ký tự; mật khẩu tối thiểu 8 ký tự.
+- Đổi mật khẩu khi `currentPassword` sai: bạn tự chọn trả 400 hay 401, rồi giải thích.
+- Admin không được tự khoá chính mình (trả 400).
+- ⚠️ **Bẫy thứ tự rule trong `SecurityConfig`:**
+  - `GET /api/**` đang `permitAll`, vậy `GET /api/users` có bị lộ không?
+  - `PUT /api/**` đang yêu cầu `ADMIN`, vậy `USER` có đổi được mật khẩu của chính mình không?
+  - `PATCH` chưa có rule nào, nên rơi xuống `anyRequest().authenticated()`. Vậy ai cũng khoá được người khác?
+
+### 13.6 Job dọn refresh token
+- Bật `@EnableScheduling`. Viết một `@Scheduled` job xoá các refresh token đã **hết hạn** quá một khoảng giữ lại (ví dụ 1 ngày). Không xoá token đã revoke mà chưa hết hạn, vì vẫn cần chúng cho reuse detection.
+- Lịch chạy (`cron`) và khoảng giữ lại phải lấy từ cấu hình. Ở dev, đặt chạy mỗi phút để dễ test.
+- Xoá bằng một câu `@Modifying` `DELETE`. Log số dòng đã xoá ở mức `info`.
+- Nhớ bẫy khoá ngoại `replaced_by_id` (câu 7 của Step 12): nếu một token chưa hết hạn đang trỏ tới token sắp bị xoá thì sao?
+
+### 13.7 Kiểm tra
+| # | Việc | Kết quả mong đợi |
+|---|---|---|
+| 1 | Khởi động app lần đầu sau V5 | Bảng `users` có `librarian`, `reader`; `password_hash` dạng `{bcrypt}...` |
+| 2 | Restart app | Không tạo trùng user. Đổi mật khẩu trước khi restart thì mật khẩu mới vẫn giữ nguyên |
+| 3 | Đăng ký user mới, rồi login | 201, sau đó 200, `roles: ["USER"]` |
+| 4 | Đăng ký gửi kèm `"role": "ADMIN"` | Vẫn là `USER` |
+| 5 | Đăng ký trùng username / mật khẩu ngắn / username có chữ hoa | 409 / 400 / 400 kèm `fieldErrors` |
+| 6 | `GET /api/users`: không token / token `reader` / token `librarian` | 401 / 403 / 200, không có trường mật khẩu |
+| 7 | User mới gọi `POST /api/authors` | 403 |
+| 8 | Đổi mật khẩu sai `currentPassword` | 400 hoặc 401, theo lựa chọn của bạn |
+| 9 | Đổi mật khẩu đúng | 204. Login bằng mật khẩu cũ: 401. Mật khẩu mới: 200. Refresh token cũ: 401 |
+| 10 | Admin khoá user | 204. User đó login: 401. Refresh: 401. Access token còn hạn: vẫn dùng được (vì sao?) |
+| 11 | Admin tự khoá chính mình | 400 |
+| 12 | `reader` gọi `PATCH .../status` | 403 |
+| 13 | Mở khoá lại | User login được |
+| 14 | Job dọn token (chèn sẵn một token đã hết hạn từ lâu) | Bị xoá trong vòng 1 phút; token còn hạn vẫn còn; log có số dòng đã xoá |
+| 15 | Log | Không có mật khẩu, kể cả mật khẩu đăng ký |
+
+### 13.8 Câu hỏi tự tìm hiểu
+1. **(Về phần mentor sửa ở Step 12)** Vì sao `refresh()` phải lấy `username` trước, khoá các token của user, **rồi** mới nạp entity bằng `findByTokenHash`? Nếu nạp entity **trước** khi khoá thì sai ở đâu? Gợi ý: persistence context trả về gì khi một entity đã được nạp trong cùng transaction? Vì sao thu hồi bằng một câu `UPDATE` lại an toàn hơn set từng entity?
+2. Vì sao dùng `EnumType.STRING` mà không dùng `EnumType.ORDINAL` (mặc định)?
+3. Vì sao `AuthenticationConfig` và `RefreshTokenService` không cần sửa dòng nào khi đổi từ user in-memory sang DB?
+4. Tạo tài khoản ban đầu bằng `ApplicationRunner` so với seed bằng file Flyway: ưu nhược điểm của mỗi cách? Vì sao không nên đặt hash mật khẩu admin vào file `V*.sql` trong Git?
+5. Tài khoản bị khoá thì login nên trả "Account is disabled" hay message chung? Mỗi cách đánh đổi gì?
+6. Khoá user nhưng access token của họ vẫn dùng được tới khi hết hạn. Muốn chặn ngay thì áp dụng cách nào trong câu trả lời số 5 của Step 12, và cần thêm gì vào bảng `users`?
+7. Khi app chạy nhiều instance, `@Scheduled` sẽ chạy trên **mọi** instance. Có vấn đề gì không? Người ta giải quyết thế nào?
+
+➡️ Làm xong thì nhắn **"review step 13"** kèm câu trả lời.

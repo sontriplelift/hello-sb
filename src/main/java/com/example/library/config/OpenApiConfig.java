@@ -9,21 +9,17 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 
 @Configuration
-@SecurityScheme(
-	name = "bearerAuth",
-	type = SecuritySchemeType.HTTP,
-	scheme = "bearer",
-	bearerFormat = "JWT")
+@SecurityScheme(name = "bearerAuth", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT")
 public class OpenApiConfig {
 
-	@Bean
-	public OpenAPI libraryOpenAPI(LibraryProperties properties) {
-		LibraryProperties.Api api = properties.api();
+  @Bean
+  public OpenAPI libraryOpenAPI(LibraryProperties properties) {
+    LibraryProperties.Api api = properties.api();
 
-		return new OpenAPI()
-				.info(new Info()
-						.title(api.title())
-						.version(api.version())
-						.description(api.description()));
-	}
+    return new OpenAPI()
+        .info(new Info()
+            .title(api.title())
+            .version(api.version())
+            .description(api.description()));
+  }
 }

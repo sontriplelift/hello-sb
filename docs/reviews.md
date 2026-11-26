@@ -11,6 +11,58 @@ File này lưu nội dung review chi tiết của mentor, để tiếp tục s�
 
 ## Step 12: Refresh token
 
+### Review lần 2 (2026-11-26): ✅ ĐẠT
+
+Code được review: commit `9b8928c` cộng với các thay đổi chưa commit (thêm `jti`, log khi login thất bại). Theo yêu cầu của học viên, mentor sửa giúp 💡2 và 💡5 (xem bên dưới).
+
+#### Kết quả test (app khởi động lại trên cổng 8080, test bằng user `reader`)
+
+| Case | Kết quả | |
+|---|---|---|
+| Login, refresh, reuse, logout, sai mật khẩu | Như review lần 1 | ✅ |
+| Token hết hạn / user không còn tồn tại | 401, cùng message `Invalid or expired refresh token` | ✅ |
+| Access token có `jti` | Có (UUID) | ✅ |
+| 8 request đồng thời, cùng một token | 1 × 200, 7 × 401 | ✅ |
+| Dùng lại A **đồng thời** với refresh B, lặp 20 lần | 3 lần B thắng (200), 17 lần A thắng (B 401). **Cả 20 lần không còn token nào hiệu lực**, không dòng nào bị mất `replaced_by_id` | ✅ |
+| Log | Có dòng `Login failed`, không chứa token gốc | ✅ |
+
+Dữ liệu test (token của `reader`, id > 11) đã xoá. App do mentor khởi động đã được tắt.
+
+#### Các mục của lần 1
+- ❌ 1, 2, 3: đã sửa. Câu trả lời cho ❌ 3 đúng. Ý quan trọng nhất: lúc cần refresh thì access token **thường đã hết hạn**. Nếu bắt `/refresh` phải có access token thì sẽ không bao giờ refresh được.
+- 💡 1: đúng, đây là việc của FE. (Phía server cũng có thể cấu hình `BearerTokenResolver` để bỏ qua header cho hai API này, nhưng không cần.)
+- 💡 2, 5: **mentor đã sửa giúp** (giải thích ở dưới).
+- 💡 3 (`jti`), 6 (`HttpMethod.POST`, `@Tag`, dọn import và field), 7 (`.editorconfig`, dấu cách): đã làm.
+- 💡 4: mới làm được nửa: đã log khi login thất bại, nhưng handler vẫn biến lỗi hệ thống thành 401. Chuyển sang 13.0.
+- Còn sót, chuyển sang 13.0:
+  - 3 method không dùng trong `RefreshTokenRepository`: `findAllByUsername`, `existsByTokenHash`, và `findAllByUsernameAndRevokedAtIsNull` (method cuối không còn dùng sau khi mentor sửa).
+  - `OpenApiConfig` còn 3 dòng tab.
+
+#### Mentor sửa giúp: 💡 5, bỏ truy vấn thừa
+- Tách hàm private `saveNewToken(username, rawToken)`, trả về entity mà `save()` trả lại. Với `IDENTITY`, câu `INSERT` chạy ngay trong `save()` nên entity đã có `id`. Vì vậy không cần tìm lại token theo hash nữa.
+- `create()` (dùng khi login) và `refresh()` cùng gọi hàm này. Thêm hàm `refreshExpiration()` để không phải lặp chuỗi `libraryProperties.security().jwt()...`.
+
+#### Mentor sửa giúp: 💡 2, khe hở đồng thời
+**Vấn đề cũ:** `findByTokenHashForUpdate` chỉ khoá **đúng dòng** của token được gửi lên. Giả sử cùng lúc:
+- T1 dùng lại A (đã rotation): khoá dòng A, rồi đọc danh sách token còn hiệu lực, thấy B.
+- T2 refresh B: khoá dòng B, tạo C, rồi commit.
+
+A và B là hai dòng khác nhau nên T1 và T2 không chặn nhau. T1 không thấy C, nên C sống sót. Thêm nữa, T1 đã nạp B **trước khi** T2 commit. Khi T1 flush, Hibernate `UPDATE` **mọi cột** của B, nên ghi đè `replaced_by_id` của B về `null`.
+
+**Cách sửa** trong [RefreshTokenService.refresh()](../src/main/java/com/example/library/service/RefreshTokenService.java) và [RefreshTokenRepository](../src/main/java/com/example/library/repository/RefreshTokenRepository.java):
+1. `findUsernameByTokenHash`: chỉ lấy `username`, **chưa nạp entity**.
+2. `lockActiveTokensByUsername`: `SELECT ... FOR UPDATE` mọi token còn hiệu lực của user, `ORDER BY id` để mọi transaction khoá theo cùng thứ tự (tránh deadlock). Từ đây, mọi request refresh của **cùng một user** chạy lần lượt. Trong ví dụ trên, cả T1 và T2 đều phải khoá B, nên một bên phải chờ bên kia commit.
+3. `findByTokenHash`: nạp entity **sau khi** đã có khoá, nên đọc được trạng thái mới nhất.
+4. `revokeAllActiveByUsername`: thu hồi bằng **một câu `UPDATE`** (`@Modifying`). Câu này chỉ sửa cột `revoked_at`, không ghi đè `replaced_by_id`. Nó là một câu lệnh mới, nên thấy được C vừa được commit.
+
+Code cũ được giữ lại dưới dạng comment, kèm giải thích. Login (`create`) không lấy khoá, vì login bằng mật khẩu là phiên hợp lệ mới. Câu hỏi 1 ở 13.8 yêu cầu học viên tự giải thích lại bước 1 và bước 3.
+
+#### 🎓 Câu trả lời
+- **10.6, câu 1–7:** đã nhận xét ở lần 1, không đổi.
+- **❌ 3 (vì sao `permitAll`):** đúng, xem bổ sung ở trên.
+
+---
+
 ### Review lần 1 (2026-11-25): 🔁 CẦN SỬA
 
 Code được review: commit `8d37b7f` cộng với các thay đổi **chưa commit** lúc đó (API `refresh`, `logout`, `InvalidRefreshTokenException`, các DTO mới).

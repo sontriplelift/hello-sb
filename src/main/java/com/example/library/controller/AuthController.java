@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -76,10 +77,19 @@ public class AuthController {
   public ResponseEntity<TokenResponse> login(
       @Valid @RequestBody LoginRequest request) {
 
-    Authentication authentication = authenticationManager.authenticate(
-        new UsernamePasswordAuthenticationToken(
-            request.username(),
-            request.password()));
+    Authentication authentication;
+
+    try {
+      authentication = authenticationManager.authenticate(
+          new UsernamePasswordAuthenticationToken(
+              request.username(),
+              request.password()
+          )
+      );
+    } catch (AuthenticationException ex) {
+      logger.warn("Login failed.");
+      throw ex;
+    }
 
     // Tạo access token (JWT)
     AccessTokenResponse accessTokenResponse = tokenService.generateToken(authentication);

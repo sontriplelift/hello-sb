@@ -2,6 +2,7 @@ package com.example.library.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import com.example.library.config.LibraryProperties;
 import com.example.library.dto.AccessTokenResponse;
@@ -54,6 +55,7 @@ public class TokenService {
         .subject(authentication.getName())
         .issuedAt(now)
         .expiresAt(now.plusSeconds(expiresIn))
+        .id(UUID.randomUUID().toString())
         .claim("roles", roles)
         .build();
 

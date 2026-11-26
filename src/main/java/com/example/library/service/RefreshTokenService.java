@@ -8,7 +8,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
-import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,45 +67,81 @@ public class RefreshTokenService {
     }
   }
 
-  @Transactional
-  public RefreshTokenResult create(String username) {
-    String rawRefreshToken = generateRawRefreshToken();
-    String tokenHash = hashToken(rawRefreshToken);
+  private Duration refreshExpiration() {
+    return libraryProperties.security().jwt().refreshExpiration();
+  }
 
-    Duration refreshExpiration = libraryProperties.security().jwt().refreshExpiration();
-
-    Instant expiresAt = Instant.now().plus(refreshExpiration);
+  // Lưu hash của token vào DB và trả về entity đã lưu.
+  // Với IDENTITY, câu INSERT chạy ngay trong save(), nên entity trả về đã có id.
+  private RefreshToken saveNewToken(String username, String rawRefreshToken) {
+    Instant expiresAt = Instant.now().plus(refreshExpiration());
 
     RefreshToken refreshToken = new RefreshToken(
-        tokenHash,
+        hashToken(rawRefreshToken),
         username,
         expiresAt);
 
-    refreshTokenRepository.save(refreshToken);
-
-    return new RefreshTokenResult(rawRefreshToken, refreshExpiration.toSeconds());
+    return refreshTokenRepository.save(refreshToken);
   }
+
+  @Transactional
+  public RefreshTokenResult create(String username) {
+    String rawRefreshToken = generateRawRefreshToken();
+
+    saveNewToken(username, rawRefreshToken);
+
+    return new RefreshTokenResult(rawRefreshToken, refreshExpiration().toSeconds());
+  }
+
+  // Code cũ (trước khi tách saveNewToken):
+  // @Transactional
+  // public RefreshTokenResult create(String username) {
+  //   String rawRefreshToken = generateRawRefreshToken();
+  //   String tokenHash = hashToken(rawRefreshToken);
+  //   Duration refreshExpiration = libraryProperties.security().jwt().refreshExpiration();
+  //   Instant expiresAt = Instant.now().plus(refreshExpiration);
+  //   RefreshToken refreshToken = new RefreshToken(tokenHash, username, expiresAt);
+  //   refreshTokenRepository.save(refreshToken);
+  //   return new RefreshTokenResult(rawRefreshToken, refreshExpiration.toSeconds());
+  // }
 
   @Transactional
   public RefreshResult refresh(String rawRefreshToken) {
     String tokenHash = hashToken(rawRefreshToken);
 
-    RefreshToken oldToken = refreshTokenRepository
-        .findByTokenHashForUpdate(tokenHash)
+    // Code cũ: chỉ khoá đúng dòng của token này.
+    // Hai request với 2 token KHÁC NHAU của cùng user (A bị dùng lại, B đang rotation)
+    // không chặn nhau, nên token mới C sinh ra từ B có thể thoát khỏi đợt thu hồi.
+    // RefreshToken oldRefreshToken = refreshTokenRepository
+    //     .findByTokenHashForUpdate(tokenHash)
+    //     .orElseThrow(InvalidRefreshTokenException::new);
+
+    // B1: chỉ lấy username, chưa nạp entity và chưa khoá
+    String username = refreshTokenRepository
+        .findUsernameByTokenHash(tokenHash)
+        .orElseThrow(InvalidRefreshTokenException::new);
+
+    // B2: khoá mọi token còn hiệu lực của user.
+    // Mọi request refresh của cùng một user giờ chạy lần lượt.
+    refreshTokenRepository.lockActiveTokensByUsername(username);
+
+    // B3: nạp token SAU khi đã có khoá, nên đọc được trạng thái mới nhất
+    RefreshToken oldRefreshToken = refreshTokenRepository
+        .findByTokenHash(tokenHash)
         .orElseThrow(InvalidRefreshTokenException::new);
 
     Instant now = Instant.now();
 
     // Token đã bị revoke
-    if (oldToken.getRevokedAt() != null) {
+    if (oldRefreshToken.getRevokedAt() != null) {
 
       // Token đã từng được rotation -> nghi ngờ token bị đánh cắp
-      if (oldToken.getReplacedById() != null) {
-        revokeAllActiveTokens(oldToken.getUsername(), now);
+      if (oldRefreshToken.getReplacedById() != null) {
+        revokeAllActiveTokens(oldRefreshToken.getUsername(), now);
 
         logger.warn(
             "Refresh token reuse detected for user: {}. Revoking all active refresh tokens.",
-            oldToken.getUsername());
+            oldRefreshToken.getUsername());
 
         // Trả kết quả để transaction commit việc revoke
         return new RefreshResult(true, null);
@@ -115,13 +150,13 @@ public class RefreshTokenService {
       // Token đã logout hoặc bị thu hồi theo cách khác
       logger.warn(
           "Refresh token already revoked for user: {}.",
-          oldToken.getUsername());
+          oldRefreshToken.getUsername());
       throw new InvalidRefreshTokenException();
     }
 
     // Token hết hạn
-    if (!oldToken.getExpiresAt().isAfter(now)) {
-      logger.warn("Refresh token expired for user: {}", oldToken.getUsername());
+    if (!oldRefreshToken.getExpiresAt().isAfter(now)) {
+      logger.warn("Refresh token expired for user: {}", oldRefreshToken.getUsername());
       throw new InvalidRefreshTokenException();
     }
 
@@ -130,7 +165,7 @@ public class RefreshTokenService {
 
     try {
       userDetails = userDetailsService.loadUserByUsername(
-          oldToken.getUsername());
+          oldRefreshToken.getUsername());
     } catch (UsernameNotFoundException ex) {
       throw new InvalidRefreshTokenException();
     }
@@ -142,20 +177,24 @@ public class RefreshTokenService {
       throw new InvalidRefreshTokenException();
     }
 
-    // Tạo refresh token mới
-    RefreshTokenResult newRefreshTokenResult = create(
-        userDetails.getUsername());
+    // Code cũ: tạo token qua create() rồi phải tìm lại entity theo hash (thêm 1 truy vấn)
+    // RefreshTokenResult newRefreshTokenResult = create(
+    //     userDetails.getUsername());
+    // RefreshToken newRefreshToken = refreshTokenRepository
+    //     .findByTokenHash(
+    //         hashToken(newRefreshTokenResult.refreshToken()))
+    //     .orElseThrow(() -> new IllegalStateException(
+    //         "New refresh token was not persisted"));
 
-    // Tìm bản ghi token mới vừa được tạo
-    RefreshToken newToken = refreshTokenRepository
-        .findByTokenHash(
-            hashToken(newRefreshTokenResult.refreshToken()))
-        .orElseThrow(() -> new IllegalStateException(
-            "New refresh token was not persisted"));
+    // Tạo refresh token mới, nhận luôn entity đã lưu (đã có id)
+    String newRawRefreshToken = generateRawRefreshToken();
+    RefreshToken newRefreshToken = saveNewToken(
+        userDetails.getUsername(),
+        newRawRefreshToken);
 
     // Revoke token cũ và liên kết với token mới
-    oldToken.setRevokedAt(now);
-    oldToken.setReplacedById(newToken.getId());
+    oldRefreshToken.setRevokedAt(now);
+    oldRefreshToken.setReplacedById(newRefreshToken.getId());
 
     // Tạo access token mới từ UserDetails hiện tại
     AccessTokenResponse accessTokenResponse = tokenService.generateToken(
@@ -165,18 +204,28 @@ public class RefreshTokenService {
         accessTokenResponse.accessToken(),
         accessTokenResponse.tokenType(),
         accessTokenResponse.expiresIn(),
-        newRefreshTokenResult.refreshToken(),
-        newRefreshTokenResult.refreshExpiresIn());
+        newRawRefreshToken,
+        refreshExpiration().toSeconds());
 
     logger.info("Refresh token rotated successfully for user: {}", userDetails.getUsername());
 
     return new RefreshResult(false, response);
   }
 
-  private void revokeAllActiveTokens(String username, Instant now) {
-    List<RefreshToken> activeTokens = refreshTokenRepository.findAllByUsernameAndRevokedAtIsNull(username);
+  // Code cũ: nạp entity rồi set từng cái.
+  // - Danh sách đọc ở thời điểm đó, nên không thấy token vừa được commit sau đó.
+  // - Khi flush, Hibernate UPDATE mọi cột, có thể ghi đè replaced_by_id bằng giá trị cũ (null).
+  // private void revokeAllActiveTokens(String username, Instant now) {
+  //   List<RefreshToken> activeTokens = refreshTokenRepository.findAllByUsernameAndRevokedAtIsNull(username);
+  //   activeTokens.forEach(token -> token.setRevokedAt(now));
+  // }
 
-    activeTokens.forEach(token -> token.setRevokedAt(now));
+  // Một câu UPDATE: chỉ sửa cột revoked_at, và là câu lệnh mới nên thấy được
+  // mọi token đã commit trước đó (kể cả token vừa sinh ra từ rotation)
+  private void revokeAllActiveTokens(String username, Instant now) {
+    int revoked = refreshTokenRepository.revokeAllActiveByUsername(username, now);
+
+    logger.debug("Revoked {} active refresh tokens", revoked);
   }
 
   @Transactional
