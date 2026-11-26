@@ -18,11 +18,11 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
   Optional<RefreshToken> findByTokenHash(String tokenHash);
 
-  List<RefreshToken> findAllByUsername(String username);
+  // List<RefreshToken> findAllByUsername(String username);
 
-  List<RefreshToken> findAllByUsernameAndRevokedAtIsNull(String username);
+  // List<RefreshToken> findAllByUsernameAndRevokedAtIsNull(String username);
 
-  boolean existsByTokenHash(String tokenHash);
+  // boolean existsByTokenHash(String tokenHash);
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("""
