@@ -10,6 +10,5 @@ public record BookResponse(
     Integer publishedYear,
     BigDecimal price,
     Instant createdAt,
-    AuthorSummary author
-) {
+    AuthorSummary author) {
 }

@@ -6,6 +6,5 @@ public record BookSearchCriteria(
     String title,
     Long authorId,
     BigDecimal minPrice,
-    BigDecimal maxPrice
-) {
+    BigDecimal maxPrice) {
 }

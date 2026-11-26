@@ -8,8 +8,8 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 @ConfigurationPropertiesScan
 public class LibraryApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(LibraryApplication.class, args);
-	}
+  public static void main(String[] args) {
+    SpringApplication.run(LibraryApplication.class, args);
+  }
 
 }

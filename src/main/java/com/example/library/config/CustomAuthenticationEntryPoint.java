@@ -18,32 +18,32 @@ import tools.jackson.databind.json.JsonMapper;
 @Component
 public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-	private final JsonMapper jsonMapper;
+  private final JsonMapper jsonMapper;
 
-	public CustomAuthenticationEntryPoint(JsonMapper jsonMapper) {
-		this.jsonMapper = jsonMapper;
-	}
+  public CustomAuthenticationEntryPoint(JsonMapper jsonMapper) {
+    this.jsonMapper = jsonMapper;
+  }
 
-	@Override
-	public void commence(
-			HttpServletRequest request,
-			HttpServletResponse response,
-			AuthenticationException authException) throws IOException {
+  @Override
+  public void commence(
+      HttpServletRequest request,
+      HttpServletResponse response,
+      AuthenticationException authException) throws IOException {
 
-		ErrorResponse errorResponse = new ErrorResponse(
-				Instant.now(),
-				HttpStatus.UNAUTHORIZED.value(),
-				"Unauthorized",
-				"Authentication is required or credentials are invalid",
-				request.getRequestURI(),
-				null);
+    ErrorResponse errorResponse = new ErrorResponse(
+        Instant.now(),
+        HttpStatus.UNAUTHORIZED.value(),
+        "Unauthorized",
+        "Authentication is required or credentials are invalid",
+        request.getRequestURI(),
+        null);
 
-		response.setStatus(HttpStatus.UNAUTHORIZED.value());
-		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-		response.setCharacterEncoding("UTF-8");
+    response.setStatus(HttpStatus.UNAUTHORIZED.value());
+    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+    response.setCharacterEncoding("UTF-8");
 
-		response.setHeader("WWW-Authenticate", "Bearer");
+    response.setHeader("WWW-Authenticate", "Bearer");
 
-		jsonMapper.writeValue(response.getOutputStream(), errorResponse);
-	}
+    jsonMapper.writeValue(response.getOutputStream(), errorResponse);
+  }
 }

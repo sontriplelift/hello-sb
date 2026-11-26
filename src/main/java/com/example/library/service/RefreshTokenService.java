@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -125,8 +126,14 @@ public class RefreshTokenService {
     }
 
     // Lấy thông tin user hiện tại, không sử dụng roles từ JWT cũ
-    UserDetails userDetails = userDetailsService.loadUserByUsername(
-        oldToken.getUsername());
+    UserDetails userDetails;
+
+    try {
+      userDetails = userDetailsService.loadUserByUsername(
+          oldToken.getUsername());
+    } catch (UsernameNotFoundException ex) {
+      throw new InvalidRefreshTokenException();
+    }
 
     if (!userDetails.isEnabled()
         || !userDetails.isAccountNonExpired()

@@ -17,96 +17,96 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class SecurityConfig {
 
-	@Bean
-	public SecurityFilterChain securityFilterChain(
-			HttpSecurity http,
-			CustomAuthenticationEntryPoint authenticationEntryPoint,
-			CustomAccessDeniedHandler accessDeniedHandler,
-			JwtAuthenticationConverter jwtAuthenticationConverter)
-			throws Exception {
+  @Bean
+  public SecurityFilterChain securityFilterChain(
+      HttpSecurity http,
+      CustomAuthenticationEntryPoint authenticationEntryPoint,
+      CustomAccessDeniedHandler accessDeniedHandler,
+      JwtAuthenticationConverter jwtAuthenticationConverter)
+      throws Exception {
 
-		http
-				.csrf(csrf -> csrf.disable())
+    http
+        .csrf(csrf -> csrf.disable())
 
-				.sessionManagement(session -> session
-						.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .sessionManagement(session -> session
+            .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-				.authorizeHttpRequests(auth -> auth
+        .authorizeHttpRequests(auth -> auth
 
-						// Swagger: cho phép mọi người truy cập
-						.requestMatchers(
-								"/swagger-ui/**",
-								"/swagger-ui.html",
-								"/v3/api-docs/**")
-						.permitAll()
+            // Swagger: cho phép mọi người truy cập
+            .requestMatchers(
+                "/swagger-ui/**",
+                "/swagger-ui.html",
+                "/v3/api-docs/**")
+            .permitAll()
 
-						// Error endpoint: cho phép mọi người truy cập
-						.requestMatchers("/error").permitAll()
+            // Error endpoint: cho phép mọi người truy cập
+            .requestMatchers("/error").permitAll()
 
-						// endpoint login phải được phép truy cập mà không cần token
-						.requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-						.requestMatchers("/api/auth/refresh").permitAll()
-						.requestMatchers("/api/auth/logout").permitAll()
+            // endpoint login phải được phép truy cập mà không cần token
+            .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
 
-						// GET API: cho phép mọi người truy cập
-						.requestMatchers(HttpMethod.GET, "/api/**").permitAll()
+            // GET API: cho phép mọi người truy cập
+            .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
 
-						// POST, PUT, DELETE API: chỉ ADMIN
-						.requestMatchers(
-								HttpMethod.POST, "/api/**")
-						.hasRole("ADMIN")
-						.requestMatchers(
-								HttpMethod.PUT, "/api/**")
-						.hasRole("ADMIN")
-						.requestMatchers(
-								HttpMethod.DELETE, "/api/**")
-						.hasRole("ADMIN")
+            // POST, PUT, DELETE API: chỉ ADMIN
+            .requestMatchers(
+                HttpMethod.POST, "/api/**")
+            .hasRole("ADMIN")
+            .requestMatchers(
+                HttpMethod.PUT, "/api/**")
+            .hasRole("ADMIN")
+            .requestMatchers(
+                HttpMethod.DELETE, "/api/**")
+            .hasRole("ADMIN")
 
-						// Các request còn lại phải đăng nhập
-						.anyRequest().authenticated())
+            // Các request còn lại phải đăng nhập
+            .anyRequest().authenticated())
 
-				// Đăng ký xử lý lỗi xác thực và phân quyền
-				.exceptionHandling(exception -> exception
-						.authenticationEntryPoint(authenticationEntryPoint)
-						.accessDeniedHandler(accessDeniedHandler))
+        // Đăng ký xử lý lỗi xác thực và phân quyền
+        .exceptionHandling(exception -> exception
+            .authenticationEntryPoint(authenticationEntryPoint)
+            .accessDeniedHandler(accessDeniedHandler))
 
-				// Sử dụng HTTP Basic Authentication
-				// .httpBasic(basic -> basic
-				// .authenticationEntryPoint(authenticationEntryPoint)
-				// );
+        // Sử dụng HTTP Basic Authentication
+        // .httpBasic(basic -> basic
+        // .authenticationEntryPoint(authenticationEntryPoint)
+        // );
 
-				// Sử dụng JWT
-				.oauth2ResourceServer(oauth2 -> oauth2
-						.jwt(jwt -> jwt
-								.jwtAuthenticationConverter(jwtAuthenticationConverter))
-						.authenticationEntryPoint(authenticationEntryPoint));
+        // Sử dụng JWT
+        .oauth2ResourceServer(oauth2 -> oauth2
+            .jwt(jwt -> jwt
+                .jwtAuthenticationConverter(jwtAuthenticationConverter))
+            .authenticationEntryPoint(authenticationEntryPoint));
 
-		return http.build();
-	}
+    return http.build();
+  }
 
-	@Bean
-	public PasswordEncoder passwordEncoder() {
-		return PasswordEncoderFactories.createDelegatingPasswordEncoder();
-	}
+  @Bean
+  public PasswordEncoder passwordEncoder() {
+    return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+  }
 
-	@Bean
-	public UserDetailsService userDetailsService(
-			LibraryProperties properties,
-			PasswordEncoder passwordEncoder) {
-		LibraryProperties.Security security = properties.security();
+  @Bean
+  public UserDetailsService userDetailsService(
+      LibraryProperties properties,
+      PasswordEncoder passwordEncoder) {
+    LibraryProperties.Security security = properties.security();
 
-		UserDetails librarian = User.builder()
-				.username("librarian")
-				.password(passwordEncoder.encode(security.adminPassword()))
-				.roles("ADMIN")
-				.build();
+    UserDetails librarian = User.builder()
+        .username("librarian")
+        .password(passwordEncoder.encode(security.adminPassword()))
+        .roles("ADMIN")
+        .build();
 
-		UserDetails reader = User.builder()
-				.username("reader")
-				.password(passwordEncoder.encode(security.readerPassword()))
-				.roles("USER")
-				.build();
+    UserDetails reader = User.builder()
+        .username("reader")
+        .password(passwordEncoder.encode(security.readerPassword()))
+        .roles("USER")
+        .build();
 
-		return new InMemoryUserDetailsManager(librarian, reader);
-	}
+    return new InMemoryUserDetailsManager(librarian, reader);
+  }
 }

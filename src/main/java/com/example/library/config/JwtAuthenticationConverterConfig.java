@@ -10,18 +10,15 @@ public class JwtAuthenticationConverterConfig {
 
   @Bean
   public JwtAuthenticationConverter jwtAuthenticationConverter() {
-    JwtGrantedAuthoritiesConverter authoritiesConverter =
-      new JwtGrantedAuthoritiesConverter();
+    JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
 
     authoritiesConverter.setAuthoritiesClaimName("roles");
     authoritiesConverter.setAuthorityPrefix("ROLE_");
 
-    JwtAuthenticationConverter jwtAuthenticationConverter =
-      new JwtAuthenticationConverter();
+    JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
 
     jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(
-      authoritiesConverter
-    );
+        authoritiesConverter);
 
     return jwtAuthenticationConverter;
   }

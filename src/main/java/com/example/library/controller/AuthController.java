@@ -11,12 +11,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.library.dto.AccessTokenResponse;
 import com.example.library.dto.LoginRequest;
 import com.example.library.dto.LogoutRequest;
 import com.example.library.dto.RefreshRequest;
 import com.example.library.dto.RefreshResult;
 import com.example.library.dto.RefreshTokenResult;
-import com.example.library.dto.AccessTokenResponse;
 import com.example.library.dto.TokenResponse;
 import com.example.library.exception.ErrorResponse;
 import com.example.library.exception.InvalidRefreshTokenException;
@@ -28,9 +28,10 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
+@Tag (name = "Auth", description = "API Auth")
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -133,11 +134,7 @@ public class AuthController {
       throw new InvalidRefreshTokenException();
     }
 
-    if (result.tokenWithRefreshResponse() == null) {
-      throw new InvalidRefreshTokenException();
-    }
-
-    return ResponseEntity.ok(result.tokenWithRefreshResponse());
+    return ResponseEntity.ok(result.tokenResponse());
   }
 
   @Operation(summary = "Logout")

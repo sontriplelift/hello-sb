@@ -8,16 +8,14 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-@Configuration 
+@Configuration
 public class AuthenticationConfig {
-  
+
   @Bean
   public AuthenticationManager authenticationManager(
-    UserDetailsService userDetailsService,
-    PasswordEncoder passwordEncoder
-  ) {
-    DaoAuthenticationProvider provider =
-      new DaoAuthenticationProvider(userDetailsService);
+      UserDetailsService userDetailsService,
+      PasswordEncoder passwordEncoder) {
+    DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
 
     provider.setPasswordEncoder(passwordEncoder);
 
