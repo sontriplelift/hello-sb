@@ -30,6 +30,13 @@ public class RefreshToken {
   @Column(nullable = false, name = "username", length = 100)
   private String username;
 
+  // Tạm thời vẫn dùng username thay vì mapping User vì:
+  // - RefreshTokenService đang xử lý refresh token bằng username.
+  // - Các thao tác refresh, revoke, reuse detection hiện đang xoay quanh username.
+  // @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  // @JoinColumn(name = "username", referencedColumnName = "username", nullable = false)
+  // private User user;
+
   @CreationTimestamp
   @Column(nullable = false, name = "created_at", updatable = false)
   private Instant createdAt;
